@@ -1,239 +1,268 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   TrendingUp,
   TrendingDown,
   CheckCircle2,
+  Package,
   DollarSign,
-  Zap,
+  Percent,
   AlertTriangle,
   Clock,
-  Target,
   Users,
-  Package,
   Phone,
   Mail,
   MapPin,
-  User,
+  ArrowRight,
+  ShoppingCart,
+  MessageSquare,
+  PhoneCall,
 } from "lucide-react"
-import { createClient } from "@/lib/supabase-client"
+import { createBrowserClient } from "@supabase/ssr"
+
+const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+interface Supplier {
+  id: number
+  code: string
+  name: string
+  category: string
+  contact: string
+  phone: string
+  email: string
+  address: string
+  cnpj: string
+  delivery_days: number
+  payment_terms: number
+}
 
 export default function Fornecedores() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
-  const [searchType, setSearchType] = useState("name")
-  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
+  const [filterType, setFilterType] = useState("name")
 
   useEffect(() => {
+    async function fetchSuppliers() {
+      const { data, error } = await supabase.from("beeoz_prod_suppliers").select("*").order("name", { ascending: true })
+
+      if (error) {
+        console.error("Error fetching suppliers:", error)
+      } else {
+        setSuppliers(data || [])
+      }
+      setLoading(false)
+    }
+
     fetchSuppliers()
   }, [])
 
-  const fetchSuppliers = async () => {
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase.from("beeoz_prod_suppliers").select("*").order("name")
-
-      if (error) throw error
-      setSuppliers(data || [])
-    } catch (error) {
-      console.error("[v0] Erro ao buscar fornecedores:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const filteredSuppliers = suppliers.filter((supplier) => {
     const searchLower = searchTerm.toLowerCase()
-    if (searchType === "name") {
-      return supplier.name?.toLowerCase().includes(searchLower)
+    if (filterType === "name") {
+      return supplier.name.toLowerCase().includes(searchLower)
     } else {
-      return supplier.code?.toLowerCase().includes(searchLower)
+      return supplier.code.toLowerCase().includes(searchLower)
     }
   })
 
+  const metrics = {
+    deliveryPerformance: 82,
+    deliveryPrevious: 78,
+    qualityScore: 94,
+    qualityPrevious: 92,
+    purchaseVolume: 523000,
+    purchaseTicket: 36700,
+    purchasePrevious: -8,
+    economySaved: 42000,
+    economyLeadTime: 10,
+    economyPrevious: 27,
+  }
+
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-balance">Fornecedores</h1>
-        <p className="text-muted-foreground">Gestão estratégica de fornecedores e performance de compras</p>
+        <p className="text-muted-foreground">Gestão de relacionamento e performance de compras</p>
       </div>
 
-      {/* Visão Executiva */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <Zap className="h-5 w-5 text-primary" />
+      <div>
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+          <TrendingUp className="h-5 w-5" />
           Visão Executiva
         </h2>
         <div className="grid gap-4 md:grid-cols-4">
+          {/* Performance de Entregas */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Performance de Entregas</CardTitle>
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">82%</div>
-              <p className="text-xs text-muted-foreground mt-1">Meta: 90%</p>
-              <div className="flex items-center gap-1 mt-2 text-xs text-green-600">
-                <TrendingUp className="h-3 w-3" />
-                <span>+15% vs mês anterior</span>
+            <CardContent className="space-y-2">
+              <div className="text-3xl font-bold">{metrics.deliveryPerformance}%</div>
+              <div className="text-xs text-muted-foreground">{metrics.deliveryPrevious}% no período</div>
+              <div className="flex items-center gap-1 text-xs text-green-600">
+                <TrendingUp className="h-3 w-3" />+{metrics.deliveryPerformance - metrics.deliveryPrevious}% vs mês
+                anterior
               </div>
-              <Button variant="link" className="h-auto p-0 mt-2 text-xs">
-                Ver Histórico →
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => {}}>
+                Ver Histórico <ArrowRight className="ml-1 h-3 w-3" />
               </Button>
             </CardContent>
           </Card>
 
+          {/* Qualidade dos Fornecimentos */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">Qualidade dos Fornecedores</CardTitle>
-                <Target className="h-4 w-4 text-blue-600" />
+                <CardTitle className="text-sm font-medium">Qualidade dos Fornecimentos</CardTitle>
+                <CheckCircle2 className="h-5 w-5 text-blue-600" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">94%</div>
-              <p className="text-xs text-muted-foreground mt-1">5% classificados</p>
-              <div className="flex items-center gap-1 mt-2 text-xs text-green-600">
-                <TrendingUp className="h-3 w-3" />
-                <span>+2% vs mês anterior</span>
+            <CardContent className="space-y-2">
+              <div className="text-3xl font-bold">{metrics.qualityScore}%</div>
+              <div className="text-xs text-muted-foreground">{100 - metrics.qualityScore}% devoluções</div>
+              <div className="flex items-center gap-1 text-xs text-green-600">
+                <TrendingUp className="h-3 w-3" />+{metrics.qualityScore - metrics.qualityPrevious}% vs mês anterior
               </div>
-              <Button variant="link" className="h-auto p-0 mt-2 text-xs">
-                Avaliar Qualidade →
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => {}}>
+                Avaliar Qualidade <ArrowRight className="ml-1 h-3 w-3" />
               </Button>
             </CardContent>
           </Card>
 
+          {/* Volume de Compras */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Volume de Compras</CardTitle>
-                <DollarSign className="h-4 w-4 text-purple-600" />
+                <DollarSign className="h-5 w-5 text-purple-600" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">R$ 523k</div>
-              <p className="text-xs text-muted-foreground mt-1">Ticket médio: R$ 16.1k</p>
-              <div className="flex items-center gap-1 mt-2 text-xs text-red-600">
-                <TrendingDown className="h-3 w-3" />
-                <span>-6% vs mês anterior</span>
+            <CardContent className="space-y-2">
+              <div className="text-3xl font-bold">R$ {(metrics.purchaseVolume / 1000).toFixed(0)}k</div>
+              <div className="text-xs text-muted-foreground">
+                Ticket médio: R$ {(metrics.purchaseTicket / 1000).toFixed(1)}k
               </div>
-              <Button variant="link" className="h-auto p-0 mt-2 text-xs">
-                Análise de Compras →
+              <div className="flex items-center gap-1 text-xs text-red-600">
+                <TrendingDown className="h-3 w-3" />
+                {metrics.purchasePrevious}% vs mês anterior
+              </div>
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => {}}>
+                Analisar de Compras <ArrowRight className="ml-1 h-3 w-3" />
               </Button>
             </CardContent>
           </Card>
 
+          {/* Economia Negociada */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Economia Negociada</CardTitle>
-                <Package className="h-4 w-4 text-orange-600" />
+                <Percent className="h-5 w-5 text-orange-600" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">R$ 42k</div>
-              <p className="text-xs text-muted-foreground mt-1">Lead time médio: 12 dias</p>
-              <div className="flex items-center gap-1 mt-2 text-xs text-green-600">
-                <TrendingUp className="h-3 w-3" />
-                <span>+47% vs mês anterior</span>
+            <CardContent className="space-y-2">
+              <div className="text-3xl font-bold">R$ {(metrics.economySaved / 1000).toFixed(0)}k</div>
+              <div className="text-xs text-muted-foreground">Lead time médio: {metrics.economyLeadTime} dias</div>
+              <div className="flex items-center gap-1 text-xs text-green-600">
+                <TrendingUp className="h-3 w-3" />+{metrics.economyPrevious}% vs mês anterior
               </div>
-              <Button variant="link" className="h-auto p-0 mt-2 text-xs">
-                Renegociar →
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => {}}>
+                Renegociar <ArrowRight className="ml-1 h-3 w-3" />
               </Button>
             </CardContent>
           </Card>
         </div>
-      </section>
+      </div>
 
-      {/* Alertas e Ações Prioritárias */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-orange-600" />
+      <div>
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+          <AlertTriangle className="h-5 w-5" />
           Alertas e Ações Prioritárias
         </h2>
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-red-200 bg-red-50/50">
+          {/* Fornecedores Críticos */}
+          <Card className="border-red-200 bg-red-50">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-600" />
-                <CardTitle className="text-base">Fornecedores Críticos</CardTitle>
+                <CardTitle className="text-sm font-semibold">Fornecedores Críticos</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm font-medium">2 fornecedores com atrasos recorrentes</p>
-                <p className="text-xs text-muted-foreground">Risco de ruptura</p>
-              </div>
-              <Button className="w-full bg-primary hover:bg-primary/90">
-                <CheckCircle2 className="h-4 w-4 mr-2" />
+            <CardContent className="space-y-2">
+              <p className="text-sm">2 fornecedores com atrasos recorrentes</p>
+              <p className="text-xs text-muted-foreground">Risco de ruptura</p>
+              <Button className="w-full bg-green-600 hover:bg-green-700">
+                <CheckCircle2 className="mr-2 h-4 w-4" />
                 Revisar Contratos
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="border-orange-200 bg-orange-50/50">
+          {/* Contratos Vencendo */}
+          <Card className="border-orange-200 bg-orange-50">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-orange-600" />
-                <CardTitle className="text-base">Contratos Vencendo</CardTitle>
+                <CardTitle className="text-sm font-semibold">Contratos Vencendo</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm font-medium">3 contratos vencem em 30 dias</p>
-                <p className="text-xs text-muted-foreground">Renovação necessária</p>
-              </div>
-              <Button className="w-full bg-primary hover:bg-primary/90">
-                <CheckCircle2 className="h-4 w-4 mr-2" />
+            <CardContent className="space-y-2">
+              <p className="text-sm">3 contratos vencem em 30 dias</p>
+              <p className="text-xs text-muted-foreground">Renovação necessária</p>
+              <Button className="w-full bg-green-600 hover:bg-green-700">
+                <CheckCircle2 className="mr-2 h-4 w-4" />
                 Iniciar Renovação
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="border-yellow-200 bg-yellow-50/50">
+          {/* Dependência Única */}
+          <Card className="border-yellow-200 bg-yellow-50">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                <CardTitle className="text-base">Dependência Única</CardTitle>
+                <Package className="h-5 w-5 text-yellow-600" />
+                <CardTitle className="text-sm font-semibold">Dependência Única</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm font-medium">8 produtos com fornecedor único</p>
-                <p className="text-xs text-muted-foreground">Risco de concentração</p>
-              </div>
-              <Button className="w-full bg-primary hover:bg-primary/90">
-                <CheckCircle2 className="h-4 w-4 mr-2" />
+            <CardContent className="space-y-2">
+              <p className="text-sm">8 produtos com fornecedor único</p>
+              <p className="text-xs text-muted-foreground">Risco de concentração</p>
+              <Button className="w-full bg-green-600 hover:bg-green-700">
+                <CheckCircle2 className="mr-2 h-4 w-4" />
                 Buscar Alternativas
               </Button>
             </CardContent>
           </Card>
         </div>
-      </section>
+      </div>
 
-      {/* Indicadores de Performance */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4">Indicadores de Performance</h2>
+      <div>
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+          <TrendingUp className="h-5 w-5" />
+          Indicadores de Performance
+        </h2>
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Lead Time Médio</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
               <div className="text-3xl font-bold">15 dias</div>
-              <p className="text-xs text-muted-foreground mt-1">Meta: 12 dias</p>
-              <div className="flex items-center gap-1 mt-2 text-xs text-green-600">
-                <TrendingUp className="h-3 w-3" />
-                <span>+7% vs anterior</span>
+              <div className="text-xs text-muted-foreground">Média: 17 dias</div>
+              <div className="flex items-center gap-1 text-xs text-green-600">
+                <CheckCircle2 className="h-3 w-3" />
+                +2% vs semestre
               </div>
             </CardContent>
           </Card>
@@ -242,12 +271,12 @@ export default function Fornecedores() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Taxa de Conformidade</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
               <div className="text-3xl font-bold">94%</div>
-              <p className="text-xs text-muted-foreground mt-1">Meta: 90%</p>
-              <div className="flex items-center gap-1 mt-2 text-xs text-green-600">
-                <TrendingUp className="h-3 w-3" />
-                <span>+2% vs anterior</span>
+              <div className="text-xs text-muted-foreground">Meta: 95%</div>
+              <div className="flex items-center gap-1 text-xs text-yellow-600">
+                <AlertTriangle className="h-3 w-3" />
+                +8% vs semestre
               </div>
             </CardContent>
           </Card>
@@ -256,9 +285,12 @@ export default function Fornecedores() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Fornecedores Ativos</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">4</div>
-              <p className="text-xs text-muted-foreground mt-1">4 ativos</p>
+            <CardContent className="space-y-2">
+              <div className="text-3xl font-bold">{suppliers.length}</div>
+              <div className="text-xs text-muted-foreground">2 ativos</div>
+              <div className="flex items-center gap-1 text-xs text-green-600">
+                <CheckCircle2 className="h-3 w-3" />
+              </div>
             </CardContent>
           </Card>
 
@@ -266,115 +298,117 @@ export default function Fornecedores() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Entregas no Prazo</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
               <div className="text-3xl font-bold">82%</div>
-              <p className="text-xs text-muted-foreground mt-1">Meta: 85%</p>
-              <div className="flex items-center gap-1 mt-2 text-xs text-green-600">
-                <TrendingUp className="h-3 w-3" />
-                <span>+4% vs anterior</span>
+              <div className="text-xs text-muted-foreground">Meta: 90%</div>
+              <div className="flex items-center gap-1 text-xs text-orange-600">
+                <AlertTriangle className="h-3 w-3" />
+                +3% vs semestre
               </div>
             </CardContent>
           </Card>
         </div>
-      </section>
+      </div>
 
-      {/* Catálogo de Fornecedores */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <Users className="h-5 w-5 text-purple-600" />
+      <div>
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+          <Users className="h-5 w-5" />
           Catálogo de Fornecedores
         </h2>
 
-        {/* Filtros */}
+        {/* Search and Filter */}
         <Card className="mb-4">
           <CardHeader>
             <CardTitle className="text-base">Buscar Fornecedor</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Tipo de Busca</label>
-              <Select value={searchType} onValueChange={setSearchType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name">Por Nome do Fornecedor</SelectItem>
-                  <SelectItem value="code">Por Código</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="relative">
-              <Input
-                placeholder="Buscar por nome ou código..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-              <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                <div className="h-4 w-4 text-muted-foreground" />
+            <div className="flex gap-4">
+              <div className="w-48">
+                <label className="mb-2 block text-sm font-medium">Tipo de Busca</label>
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="name">Por Nome do Fornecedor</option>
+                  <option value="code">Por Código</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="mb-2 block text-sm font-medium">&nbsp;</label>
+                <Input
+                  placeholder="Buscar por nome ou código..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Grid de Fornecedores */}
+        {/* Supplier Cards Grid */}
         {loading ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Carregando fornecedores...</p>
-          </div>
+          <div className="text-center text-muted-foreground">Carregando fornecedores...</div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             {filteredSuppliers.map((supplier) => (
-              <Card key={supplier.id} className="relative">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
+              <Card key={supplier.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-yellow-500 hover:bg-yellow-600">Fornecedor</Badge>
-                      <h3 className="text-xl font-bold">{supplier.name}</h3>
+                      <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-200">
+                        {supplier.category}
+                      </Badge>
+                      <h3 className="font-semibold">{supplier.name}</h3>
                     </div>
-                    <Button size="sm" className="bg-orange-500 hover:bg-orange-600">
+                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700">
                       Detalhes
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">{supplier.code}</p>
-                  <Badge variant="outline" className="w-fit mt-2">
-                    {supplier.category}
-                  </Badge>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Informações de Contato */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="h-4 w-4 text-muted-foreground" />
+                <CardContent className="space-y-3">
+                  {/* Contact Information */}
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
                       <span>{supplier.contact}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <span>{supplier.phone}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       <span className="truncate">{supplier.email}</span>
                     </div>
-                    <div className="flex items-start gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <span className="text-pretty">{supplier.address}</span>
+                    <div className="flex items-start gap-2">
+                      <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      <span className="text-xs leading-relaxed">{supplier.address}</span>
                     </div>
                   </div>
 
-                  {/* Botões de Ação */}
+                  {/* Action Buttons */}
                   <div className="grid grid-cols-2 gap-2">
-                    <Button className="bg-purple-600 hover:bg-purple-700">
-                      <Phone className="h-4 w-4 mr-2" />
+                    <Button variant="default" className="bg-purple-600 hover:bg-purple-700">
+                      <ShoppingCart className="mr-2 h-4 w-4" />
                       Pedido
                     </Button>
-                    <Button className="bg-blue-600 hover:bg-blue-700">
-                      <Package className="h-4 w-4 mr-2" />
-                      Contrato
+                    <Button variant="default" className="bg-blue-600 hover:bg-blue-700">
+                      <Package className="mr-2 h-4 w-4" />
+                      Cotações
+                    </Button>
+                    <Button variant="default" className="bg-green-600 hover:bg-green-700">
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      WhatsApp
+                    </Button>
+                    <Button variant="default" className="bg-blue-600 hover:bg-blue-700">
+                      <PhoneCall className="mr-2 h-4 w-4" />
+                      Ligar
                     </Button>
                   </div>
-                  <Button className="w-full bg-orange-500 hover:bg-orange-600">
-                    <Mail className="h-4 w-4 mr-2" />
+                  <Button variant="default" className="w-full bg-orange-600 hover:bg-orange-700">
+                    <Mail className="mr-2 h-4 w-4" />
                     Email
                   </Button>
                 </CardContent>
@@ -385,12 +419,10 @@ export default function Fornecedores() {
 
         {!loading && filteredSuppliers.length === 0 && (
           <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">Nenhum fornecedor encontrado</p>
-            </CardContent>
+            <CardContent className="py-8 text-center text-muted-foreground">Nenhum fornecedor encontrado</CardContent>
           </Card>
         )}
-      </section>
+      </div>
     </div>
   )
 }

@@ -31,7 +31,7 @@ export default function Home() {
       bgColor: "bg-blue-50",
       borderColor: "border-blue-200",
       buttonText: "Ver Detalhes",
-      href: "/produtos",
+      href: "/materias-primas",
     },
     {
       title: "Risco de Ruptura",

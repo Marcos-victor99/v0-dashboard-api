@@ -5,12 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
+import { Search, ShoppingCart, Package, AlertTriangle, AlertCircle } from "lucide-react"
+import { createBrowserClient } from "@supabase/ssr"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, ShoppingCart, FileText, Package, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react"
-import { createClient } from "@/lib/supabase-client"
 
-interface Product {
+type Product = {
   id: number
   code: string
   name: string
@@ -21,114 +22,83 @@ interface Product {
     name: string
     icon: string
   }
-  // Campos calculados/mock para o exemplo
-  min_stock: number
-  reorder_point: number
-  eoq: number
-  shelf_life_days: number
-  lot_setup: number
 }
 
-export default function ProdutosPage() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [categories, setCategories] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+export default function Produtos() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    const fetchProducts = async () => {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
 
-  async function fetchData() {
-    try {
-      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("beeoz_prod_products")
+        .select(`
+          *,
+          category:beeoz_prod_categories(name, icon)
+        `)
+        .order("code", { ascending: true })
 
-      // Buscar categorias
-      const { data: categoriesData } = await supabase.from("beeoz_prod_categories").select("*")
-
-      // Buscar produtos
-      const { data: productsData } = await supabase.from("beeoz_prod_products").select("*")
-
-      if (categoriesData) setCategories(categoriesData)
-
-      if (productsData) {
-        // Enriquecer produtos com dados da categoria e campos mock
-        const enrichedProducts = productsData.map((product) => {
-          const category = categoriesData?.find((c) => c.id === product.category_id)
-          return {
-            ...product,
-            category,
-            min_stock: 50,
-            reorder_point: 75,
-            eoq: 500,
-            shelf_life_days: 730,
-            lot_setup: 100,
-          }
-        })
-        setProducts(enrichedProducts)
+      if (error) {
+        console.error("Error fetching products:", error)
+      } else {
+        setProducts(data || [])
       }
-    } catch (error) {
-      console.error("[v0] Erro ao buscar dados:", error)
-    } finally {
       setLoading(false)
     }
+
+    fetchProducts()
+  }, [])
+
+  const getStockStatus = (product: Product) => {
+    const stock = product.current_stock || 0
+    if (stock === 0) return "critical"
+    if (stock < 50) return "low"
+    return "normal"
   }
 
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.code.toLowerCase().includes(searchTerm.toLowerCase())
-
     const matchesCategory = selectedCategory === "all" || product.category_id === selectedCategory
-
     return matchesSearch && matchesCategory
   })
 
   const totalProducts = products.length
-  const normalStock = products.filter((p) => p.current_stock >= p.reorder_point).length
-  const lowStock = products.filter((p) => p.current_stock < p.reorder_point && p.current_stock > 0).length
-  const criticalStock = products.filter((p) => p.current_stock === 0).length
+  const normalStock = products.filter((p) => getStockStatus(p) === "normal").length
+  const lowStock = products.filter((p) => getStockStatus(p) === "low").length
+  const criticalStock = products.filter((p) => getStockStatus(p) === "critical").length
 
-  const getStockLevel = (product: Product) => {
-    if (product.current_stock === 0) return "critical"
-    if (product.current_stock < product.reorder_point) return "low"
-    return "normal"
+  const getStockPercentage = (currentStock: number) => {
+    const maxStock = 15000 // Assuming max stock for visualization
+    return Math.min((currentStock / maxStock) * 100, 100)
   }
 
-  const getStockPercentage = (product: Product) => {
-    return Math.min((product.current_stock / product.eoq) * 100, 100)
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando produtos...</p>
-        </div>
-      </div>
-    )
-  }
+  const categories = Array.from(new Set(products.map((p) => p.category_id).filter(Boolean)))
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-balance">Catálogo de Produtos</h1>
           <p className="text-muted-foreground">Gestão de produtos acabados da Beeoz</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90">
+        <Button className="bg-green-600 hover:bg-green-700">
           <ShoppingCart className="h-4 w-4 mr-2" />
           Análise de Compras
         </Button>
       </div>
 
-      {/* Search and Filter */}
       <div className="flex gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome ou código..."
             value={searchTerm}
@@ -142,16 +112,15 @@ export default function ProdutosPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as categorias</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
-                {category.name}
+            {categories.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                {cat}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -162,17 +131,17 @@ export default function ProdutosPage() {
             <div className="text-2xl font-bold">{totalProducts}</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Normal</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center">
+              <div className="h-2 w-2 rounded-full bg-green-600" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{normalStock}</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Baixo</CardTitle>
@@ -182,7 +151,6 @@ export default function ProdutosPage() {
             <div className="text-2xl font-bold text-yellow-600">{lowStock}</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Crítico</CardTitle>
@@ -194,110 +162,129 @@ export default function ProdutosPage() {
         </Card>
       </div>
 
-      {/* Products Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredProducts.map((product) => {
-          const stockLevel = getStockLevel(product)
-          const stockPercentage = getStockPercentage(product)
+      {loading ? (
+        <div className="text-center py-12">Carregando produtos...</div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredProducts.map((product) => {
+            const stockStatus = getStockStatus(product)
+            const stockPercentage = getStockPercentage(product.current_stock || 0)
 
-          return (
-            <Card key={product.id} className="overflow-hidden">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg font-bold">{product.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{product.code}</p>
+            return (
+              <Card key={product.id} className="overflow-hidden">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg font-semibold leading-tight">{product.name}</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">{product.code}</p>
+                    </div>
+                    <Badge
+                      variant={stockStatus === "normal" ? "default" : "secondary"}
+                      className={
+                        stockStatus === "normal"
+                          ? "bg-green-600 hover:bg-green-700"
+                          : stockStatus === "low"
+                            ? "bg-yellow-600 hover:bg-yellow-700"
+                            : "bg-red-600 hover:bg-red-700"
+                      }
+                    >
+                      {stockStatus === "normal" ? "Normal" : stockStatus === "low" ? "Baixo" : "Crítico"}
+                    </Badge>
                   </div>
-                  <Badge
-                    variant={stockLevel === "normal" ? "default" : "secondary"}
-                    className={
-                      stockLevel === "normal"
-                        ? "bg-green-600 hover:bg-green-700"
-                        : stockLevel === "low"
-                          ? "bg-yellow-500 hover:bg-yellow-600"
-                          : "bg-red-600 hover:bg-red-700"
-                    }
-                  >
-                    {stockLevel === "normal" ? "Normal" : stockLevel === "low" ? "Baixo" : "Crítico"}
-                  </Badge>
-                </div>
-              </CardHeader>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Tabs defaultValue="ficha" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="ficha" className="text-xs">
+                        📋 Ficha Técnica
+                      </TabsTrigger>
+                      <TabsTrigger value="lotes" className="text-xs">
+                        📦 Lotes
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="ficha" className="space-y-3 mt-4">
+                      {product.category && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span>{product.category.icon}</span>
+                          <span className="font-medium">{product.category.name}</span>
+                        </div>
+                      )}
 
-              <CardContent className="space-y-4">
-                {/* Action Buttons */}
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1 bg-transparent">
-                    <FileText className="h-3 w-3 mr-1" />
-                    Ficha Técnica
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1 bg-transparent">
-                    <Package className="h-3 w-3 mr-1" />
-                    Lotes
-                  </Button>
-                </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Estoque Atual:</span>
+                          <span
+                            className={`font-semibold ${
+                              stockStatus === "normal"
+                                ? "text-green-600"
+                                : stockStatus === "low"
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                            }`}
+                          >
+                            {product.current_stock || 0} un
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Estoque Mínimo:</span>
+                          <span className="font-medium">50 un</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Ponto de Reposição:</span>
+                          <span className="font-medium">75 un</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Lote Econômico (EOQ):</span>
+                          <span className="font-medium">500 un</span>
+                        </div>
+                      </div>
 
-                {/* Category */}
-                {product.category && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-lg">{product.category.icon}</span>
-                    <span className="font-medium">{product.category.name}</span>
-                  </div>
-                )}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Nível de Estoque</span>
+                          <span
+                            className={
+                              stockStatus === "normal"
+                                ? "text-green-600"
+                                : stockStatus === "low"
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                            }
+                          >
+                            {stockPercentage.toFixed(0)}%
+                          </span>
+                        </div>
+                        <Progress
+                          value={stockPercentage}
+                          className="h-2"
+                          indicatorClassName={
+                            stockStatus === "normal"
+                              ? "bg-green-600"
+                              : stockStatus === "low"
+                                ? "bg-yellow-600"
+                                : "bg-red-600"
+                          }
+                        />
+                      </div>
 
-                {/* Stock Info */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Estoque Atual:</span>
-                    <span className="font-bold">{product.current_stock} un</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Estoque Mínimo:</span>
-                    <span>{product.min_stock} un</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Ponto de Reposição:</span>
-                    <span>{product.reorder_point} un</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Lote Econômico (EOQ):</span>
-                    <span>{product.eoq} un</span>
-                  </div>
-                </div>
+                      <div className="flex justify-between text-xs text-muted-foreground pt-2 border-t">
+                        <span>Validade: 730 dias</span>
+                        <span>Lote Setup: 100 un</span>
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="lotes" className="mt-4">
+                      <p className="text-sm text-muted-foreground text-center py-4">Informações de lotes em breve</p>
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
-                {/* Stock Level Progress */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Nível de Estoque</span>
-                    <span className="font-medium text-green-600">{stockPercentage.toFixed(0)}%</span>
-                  </div>
-                  <Progress value={stockPercentage} className="h-2" />
-                </div>
-
-                {/* Additional Info */}
-                <div className="pt-2 border-t space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Validade:</span>
-                    <span>{product.shelf_life_days} dias</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Lote Setup:</span>
-                    <span>{product.lot_setup} un</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      {filteredProducts.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Package className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">Nenhum produto encontrado</p>
-            <p className="text-sm text-muted-foreground">Tente ajustar os filtros ou termo de busca</p>
-          </CardContent>
-        </Card>
+      {filteredProducts.length === 0 && !loading && (
+        <div className="text-center py-12 text-muted-foreground">Nenhum produto encontrado</div>
       )}
     </div>
   )

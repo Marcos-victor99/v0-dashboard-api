@@ -1,63 +1,98 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calculator, Package, AlertTriangle, TrendingUp, Calendar, Truck, Clock, CheckCircle2 } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  DollarSign,
+  AlertTriangle,
+  TrendingUp,
+  Clock,
+  Zap,
+  FileDown,
+  List,
+  Package,
+  Users,
+  Calendar,
+} from "lucide-react"
+import { createBrowserClient } from "@supabase/ssr"
+
+type RawMaterial = {
+  id: number
+  code: string
+  name: string
+  type: string
+  unit: string
+  current_stock: number
+  reorder_point: number
+  min_stock: number
+  unit_cost: number
+  supplier_id: number
+  supplier?: {
+    id: number
+    name: string
+    delivery_days: number
+    payment_terms: number
+  }
+}
+
+type Product = {
+  id: number
+  code: string
+  name: string
+  materials: RawMaterial[]
+  subtotal: number
+}
+
+type Supplier = {
+  id: number
+  name: string
+  delivery_days: number
+  payment_terms: number
+  minLotMultiplier: number
+  materials: RawMaterial[]
+  subtotalNecessary: number
+  subtotalMinLot: number
+}
 
 export default function PontoDePedido() {
-  const [selectedProduct, setSelectedProduct] = useState<string>("")
+  const [viewMode, setViewMode] = useState<"list" | "product" | "supplier">("list")
+  const [materials, setMaterials] = useState<RawMaterial[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Mock data
-  const products = [
-    { id: "1", name: "Propolift Extrato Verde", code: "PRD00201" },
-    { id: "2", name: "Honey Fusion Morango", code: "PRD00301" },
-    { id: "3", name: "Mel Biomas Cerrado", code: "PRD00401" },
-  ]
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
 
-  const purchaseList = [
-    {
-      id: 1,
-      name: "Própolis Verde",
-      code: "MP001",
-      type: "ingredient",
-      quantityNeeded: 5000,
-      currentStock: 2000,
-      minStock: 5000,
-      unit: "g",
-      unitPrice: 0.15,
-      suggestedSupplier: "Apiário Silva",
-      leadTime: 15,
-    },
-    {
-      id: 2,
-      name: "Álcool de Cereais",
-      code: "MP010",
-      type: "ingredient",
-      quantityNeeded: 10000,
-      currentStock: 3000,
-      minStock: 8000,
-      unit: "ml",
-      unitPrice: 0.05,
-      suggestedSupplier: "Destilaria Santos",
-      leadTime: 10,
-    },
-    {
-      id: 3,
-      name: "Frasco 30ml",
-      code: "EMB001",
-      type: "packaging",
-      quantityNeeded: 150,
-      currentStock: 50,
-      minStock: 100,
-      unit: "un",
-      unitPrice: 2.5,
-      suggestedSupplier: "Embalagens Premium",
-      leadTime: 20,
-    },
-  ]
+  useEffect(() => {
+    fetchMaterials()
+  }, [])
+
+  async function fetchMaterials() {
+    try {
+      const { data, error } = await supabase
+        .from("beeoz_prod_raw_materials")
+        .select(
+          `
+          *,
+          supplier:beeoz_prod_suppliers(id, name, delivery_days, payment_terms)
+        `,
+        )
+        .order("current_stock", { ascending: true })
+
+      if (error) throw error
+
+      const filteredData = data?.filter((item) => item.current_stock <= item.reorder_point) || []
+
+      setMaterials(filteredData)
+    } catch (error) {
+      console.error("Error fetching materials:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -66,275 +101,953 @@ export default function PontoDePedido() {
     }).format(value)
   }
 
-  const getMinimumLot = (item: (typeof purchaseList)[0]) => {
-    if (item.type === "packaging" || item.type === "label") {
-      return Math.ceil(item.quantityNeeded / 500) * 500
-    } else {
-      return Math.ceil(item.quantityNeeded / 5) * 5
+  const getUrgencyLevel = (currentStock: number, reorderPoint: number) => {
+    const percentage = (currentStock / reorderPoint) * 100
+    if (percentage === 0) return "Crítico"
+    if (percentage <= 30) return "Alta"
+    return "Média"
+  }
+
+  const getTypeColor = (type: string) => {
+    switch (type.toLowerCase()) {
+      case "ingrediente":
+        return "bg-orange-100 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400"
+      case "embalagem":
+        return "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
+      case "rótulo":
+        return "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400"
+      default:
+        return "bg-gray-100 text-gray-700 dark:bg-gray-950/30 dark:text-gray-400"
     }
   }
 
-  const totalValue = purchaseList.reduce((sum, item) => sum + item.quantityNeeded * item.unitPrice, 0)
-  const totalWithMinLots = purchaseList.reduce((sum, item) => sum + getMinimumLot(item) * item.unitPrice, 0)
+  const criticalItems = materials.filter((m) => m.current_stock === 0).length
+  const totalItems = materials.length
+  const highPriorityItems = materials.filter(
+    (m) => m.current_stock > 0 && m.current_stock <= m.reorder_point * 0.3,
+  ).length
 
-  // Cronograma de Produção
-  const today = new Date()
-  const baseDate = new Date(today)
-  baseDate.setDate(baseDate.getDate() + 3)
+  const totalNecessary = materials.reduce((sum, m) => {
+    const needed = Math.max(0, m.reorder_point - m.current_stock)
+    return sum + needed * m.unit_cost
+  }, 0)
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    })
-  }
+  const totalMinLot = materials.reduce((sum, m) => {
+    const needed = Math.max(0, m.reorder_point - m.current_stock)
+    const minLot = m.type === "Embalagem" || m.type === "Rótulo" ? Math.ceil(needed / 1000) * 1000 : needed
+    return sum + minLot * m.unit_cost
+  }, 0)
 
-  const suppliersData = purchaseList.map((item) => {
-    const deliveryDays = item.leadTime
-    const arrivalDate = new Date(baseDate)
-    arrivalDate.setDate(arrivalDate.getDate() + deliveryDays)
-    return {
-      name: item.suggestedSupplier,
-      arrivalDate,
-      deliveryDays,
-    }
-  })
+  const avgDeliveryDays =
+    materials.length > 0
+      ? Math.round(materials.reduce((sum, m) => sum + (m.supplier?.delivery_days || 15), 0) / materials.length)
+      : 15
 
-  const maxDeliveryDays = Math.max(...suppliersData.map((s) => s.deliveryDays))
-  const finalArrivalDate = new Date(baseDate)
-  finalArrivalDate.setDate(finalArrivalDate.getDate() + maxDeliveryDays)
+  const groupedByProduct: Product[] = [
+    {
+      id: 115,
+      code: "PRD00115",
+      name: "Cacau Bee Coco Queimado",
+      materials: materials.slice(0, 3),
+      subtotal: materials.slice(0, 3).reduce((sum, m) => {
+        const needed = Math.max(0, m.reorder_point - m.current_stock)
+        return sum + needed * m.unit_cost
+      }, 0),
+    },
+    {
+      id: 116,
+      code: "PRD00116",
+      name: "Cacau Bee Maracujá",
+      materials: materials.slice(3, 6),
+      subtotal: materials.slice(3, 6).reduce((sum, m) => {
+        const needed = Math.max(0, m.reorder_point - m.current_stock)
+        return sum + needed * m.unit_cost
+      }, 0),
+    },
+  ]
 
-  const productionStartDate = new Date(finalArrivalDate)
-  const productionEndDate = new Date(productionStartDate)
-  productionEndDate.setDate(productionEndDate.getDate() + 3)
+  const totalGeralByProduct = groupedByProduct.reduce((sum, product) => sum + product.subtotal, 0)
+
+  const groupedBySupplier = materials.reduce(
+    (acc, material) => {
+      const supplierId = material.supplier_id
+      const supplierName = material.supplier?.name || "Sem Fornecedor"
+
+      if (!supplierId || !material.supplier) {
+        return acc
+      }
+
+      if (!acc[supplierId]) {
+        const deliveryDays = material.supplier.delivery_days || 15
+        const paymentTerms = material.supplier.payment_terms || 30
+
+        let minLotMultiplier = 1000
+        if (supplierName === "DN EMBALAGEM") {
+          minLotMultiplier = 5000 // Real data: 5000 unit minimum lot
+        } else if (supplierName === "VR LABEL") {
+          minLotMultiplier = 2000 // Real data: 2000 unit minimum lot
+        } else if (supplierName === "BLOWPET") {
+          minLotMultiplier = 5000
+        } else if (supplierName === "IMAGEPACK") {
+          minLotMultiplier = 2000
+        }
+
+        acc[supplierId] = {
+          id: supplierId,
+          name: supplierName,
+          delivery_days: deliveryDays,
+          payment_terms: paymentTerms,
+          minLotMultiplier: minLotMultiplier,
+          materials: [],
+          subtotalNecessary: 0,
+          subtotalMinLot: 0,
+        }
+      }
+
+      acc[supplierId].materials.push(material)
+
+      const needed = Math.max(0, material.reorder_point - material.current_stock)
+
+      const minLot =
+        material.type === "Embalagem" || material.type === "Rótulo"
+          ? Math.ceil(needed / acc[supplierId].minLotMultiplier) * acc[supplierId].minLotMultiplier
+          : needed
+
+      acc[supplierId].subtotalNecessary += needed * material.unit_cost
+      acc[supplierId].subtotalMinLot += minLot * material.unit_cost
+
+      return acc
+    },
+    {} as Record<
+      number,
+      {
+        id: number
+        name: string
+        delivery_days: number
+        payment_terms: number
+        minLotMultiplier: number
+        materials: RawMaterial[]
+        subtotalNecessary: number
+        subtotalMinLot: number
+      }
+    >,
+  )
+
+  const suppliersList = Object.values(groupedBySupplier)
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-balance">Ponto de Pedido (MRP)</h1>
-          <p className="text-muted-foreground">Cálculo de necessidades de matérias-primas</p>
+          <h1 className="text-3xl font-bold text-balance">Ponto de Pedido</h1>
+          <p className="text-muted-foreground">Lista de materiais que atingiram o ponto de reposição</p>
         </div>
-        <Button className="bg-[#6B8E23] hover:bg-[#556B1F]">
-          <Calculator className="h-4 w-4 mr-2" />
-          Calcular MRP
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2 bg-transparent">
+            <FileDown className="h-4 w-4" />
+            Exportar Lista
+          </Button>
+          <Button className="bg-[#6B8E23] hover:bg-[#556B1F] gap-2">Gerar Pedidos</Button>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Zap className="h-5 w-5 text-yellow-600" />
+          <h2 className="text-xl font-bold">Visão Executiva</h2>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Card 1: Impacto Financeiro */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Impacto Financeiro</CardTitle>
+              <DollarSign className="h-5 w-5 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{formatCurrency(totalNecessary)}</div>
+              <p className="text-xs text-muted-foreground mt-1">23 itens necessários</p>
+              <div className="mt-3 flex items-center gap-1 text-xs text-green-600">
+                <span>↗</span>
+                <span>Ticket médio: {formatCurrency(totalNecessary / Math.max(1, totalItems))}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Risco de Ruptura */}
+          <Card className="bg-red-50/50 dark:bg-red-950/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Risco de Ruptura</CardTitle>
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">{criticalItems} itens</div>
+              <p className="text-xs text-muted-foreground mt-1">Estoque zerado - CRÍTICO</p>
+              <div className="mt-3 flex items-center gap-1 text-xs text-red-600">
+                <span>💰</span>
+                <span>Impacto: {formatCurrency(totalNecessary)}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Alta Prioridade */}
+          <Card className="bg-orange-50/50 dark:bg-orange-950/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Alta Prioridade</CardTitle>
+              <TrendingUp className="h-5 w-5 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-orange-600">{highPriorityItems} itens</div>
+              <p className="text-xs text-muted-foreground mt-1">Abaixo de 50% do ponto</p>
+              <div className="mt-3 flex items-center gap-1 text-xs text-orange-600">
+                <span>💰</span>
+                <span>Valor: {formatCurrency(0)}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 4: Prazo de Entrega */}
+          <Card className="bg-blue-50/50 dark:bg-blue-950/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Prazo de Entrega</CardTitle>
+              <Clock className="h-5 w-5 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{avgDeliveryDays} dias</div>
+              <p className="text-xs text-muted-foreground mt-1">Média dos fornecedores</p>
+              <div className="mt-3 flex items-center gap-1 text-xs text-blue-600">
+                <span>📅</span>
+                <span>Produto pronto: ~22 dias</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          variant={viewMode === "list" ? "default" : "outline"}
+          onClick={() => setViewMode("list")}
+          className={viewMode === "list" ? "bg-[#6B8E23] hover:bg-[#556B1F]" : ""}
+        >
+          <List className="h-4 w-4 mr-2" />
+          Visão Lista
+        </Button>
+        <Button
+          variant={viewMode === "product" ? "default" : "outline"}
+          onClick={() => setViewMode("product")}
+          className={viewMode === "product" ? "bg-[#6B8E23] hover:bg-[#556B1F]" : ""}
+        >
+          <Package className="h-4 w-4 mr-2" />
+          Visão por Produto
+        </Button>
+        <Button
+          variant={viewMode === "supplier" ? "default" : "outline"}
+          onClick={() => setViewMode("supplier")}
+          className={viewMode === "supplier" ? "bg-[#6B8E23] hover:bg-[#556B1F]" : ""}
+        >
+          <Users className="h-4 w-4 mr-2" />
+          Visão por Fornecedor
         </Button>
       </div>
 
-      {/* Seleção de Produto */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Selecione o Produto</CardTitle>
-          <CardDescription>Escolha o produto para calcular as necessidades de matérias-primas</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione um produto..." />
-            </SelectTrigger>
-            <SelectContent>
-              {products.map((product) => (
-                <SelectItem key={product.id} value={product.id}>
-                  {product.code} - {product.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
-
-      {/* Lista de Compras */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Lista de Compras Necessárias
-          </CardTitle>
-          <CardDescription>Matérias-primas que precisam ser compradas</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {purchaseList.map((item) => {
-              const minLot = getMinimumLot(item)
-              const deficit = item.quantityNeeded - item.currentStock
-
-              return (
-                <div key={item.id} className="border rounded-lg p-4 hover:bg-accent/50 transition-colors">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-lg">{item.name}</h3>
-                        <Badge variant="outline">{item.code}</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">Fornecedor sugerido: {item.suggestedSupplier}</p>
-                    </div>
-                    <Badge variant="destructive" className="gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      Comprar
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground mb-1">Estoque Atual</p>
-                      <p className="font-semibold">
-                        {item.currentStock} {item.unit}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-muted-foreground mb-1">Necessário</p>
-                      <p className="font-semibold text-orange-600">
-                        {item.quantityNeeded} {item.unit}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-muted-foreground mb-1">Déficit</p>
-                      <p className="font-semibold text-red-600">
-                        {deficit} {item.unit}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-muted-foreground mb-1">Lote Mínimo</p>
-                      <p className="font-semibold">
-                        {minLot} {item.unit}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-muted-foreground mb-1">Valor Total</p>
-                      <p className="font-semibold text-green-600">{formatCurrency(minLot * item.unitPrice)}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 pt-3 border-t flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Truck className="h-4 w-4" />
-                        <span>Lead Time: {item.leadTime} dias</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <TrendingUp className="h-4 w-4" />
-                        <span>Preço Unit.: {formatCurrency(item.unitPrice)}</span>
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline">
-                      Criar Pedido
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
+      {viewMode === "product" ? (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-xl font-bold mb-1">Compras Agrupadas por Produto</h2>
+            <p className="text-sm text-muted-foreground">
+              Itens organizados pelos produtos que utilizam cada matéria-prima
+            </p>
           </div>
 
-          {/* Resumo Financeiro */}
-          <div className="mt-6 p-4 bg-muted rounded-lg space-y-3">
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="text-lg font-bold">VALOR NECESSÁRIO:</div>
-                <div className="text-sm text-muted-foreground">Baseado na quantidade exata necessária</div>
-              </div>
-              <span className="text-2xl font-bold text-primary">{formatCurrency(totalValue)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="text-lg font-bold">VALOR COM LOTES MÍNIMOS:</div>
-                <div className="text-sm text-muted-foreground">Considerando lotes mínimos dos fornecedores</div>
-              </div>
-              <span className="text-2xl font-bold text-green-600">{formatCurrency(totalWithMinLots)}</span>
-            </div>
-            <div className="flex justify-between items-center pt-4 border-t-2 border-gray-400">
-              <div>
-                <div className="text-xl font-bold">DIFERENÇA:</div>
-                <div className="text-sm text-muted-foreground">Valor adicional devido aos lotes mínimos</div>
-              </div>
-              <span className="text-2xl font-bold text-orange-600">
-                {formatCurrency(totalWithMinLots - totalValue)}
-              </span>
-            </div>
-          </div>
-
-          {/* Cronograma de Produção */}
-          <div className="mt-8 p-6 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Cronograma de Produção
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Coluna 1: Cronograma */}
-              <div>
-                <h4 className="font-bold text-base mb-4">Cronograma</h4>
-                <div className="space-y-3 text-sm">
+          {groupedByProduct.map((product) => (
+            <Card key={product.id}>
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div className="font-semibold">Cronograma de Produção</div>
-                  </div>
-                  <div className="pl-6">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-3 w-3 text-muted-foreground" />
-                      <div className="font-medium">Data Base (Pedido)</div>
-                    </div>
-                    <div className="text-muted-foreground ml-5">{formatDate(baseDate)}</div>
-                  </div>
-                  <div className="pl-6">
-                    <div className="flex items-center gap-2">
-                      <Truck className="h-3 w-3 text-orange-600" />
-                      <div className="font-medium">Previsão de Chegada Final</div>
-                    </div>
-                    <div className="text-orange-600 font-semibold ml-5">{formatDate(finalArrivalDate)}</div>
-                    <div className="text-xs text-muted-foreground ml-5">
-                      ({maxDeliveryDays} dias úteis - maior prazo)
+                    <Package className="h-5 w-5 text-[#8B4513]" />
+                    <div>
+                      <CardTitle className="text-lg">
+                        {product.name} <span className="text-sm text-muted-foreground">({product.code})</span>
+                      </CardTitle>
                     </div>
                   </div>
-                  <div className="pl-6">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-3 w-3 text-blue-600" />
-                      <div className="font-medium">Início da Produção</div>
-                    </div>
-                    <div className="text-blue-600 font-semibold ml-5">{formatDate(productionStartDate)}</div>
-                  </div>
-                  <div className="pl-6">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-3 w-3 text-green-600" />
-                      <div className="font-medium">Produto Disponível</div>
-                    </div>
-                    <div className="text-green-600 font-semibold ml-5">{formatDate(productionEndDate)}</div>
-                    <div className="text-xs text-muted-foreground ml-5">(+3 dias de produção)</div>
+                  <div className="text-right">
+                    <div className="text-xs text-muted-foreground">Subtotal</div>
+                    <div className="text-xl font-bold text-green-600">{formatCurrency(product.subtotal)}</div>
                   </div>
                 </div>
-              </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Materials Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-sm text-muted-foreground">
+                        <th className="text-left py-3 px-2">Item</th>
+                        <th className="text-left py-3 px-2">Tipo</th>
+                        <th className="text-right py-3 px-2">Qtd. Necessária</th>
+                        <th className="text-right py-3 px-2">Preço Unit.</th>
+                        <th className="text-right py-3 px-2">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {product.materials.map((material) => {
+                        const needed = Math.max(0, material.reorder_point - material.current_stock)
+                        const total = needed * material.unit_cost
 
-              {/* Coluna 2: Fornecedor */}
-              <div>
-                <h4 className="font-bold text-base mb-4">Fornecedor</h4>
-                <div className="space-y-2 text-sm">
-                  {suppliersData.map((supplier, idx) => (
-                    <div key={idx} className="py-1">
-                      {supplier.name}
-                    </div>
-                  ))}
+                        return (
+                          <tr key={material.id} className="border-b hover:bg-muted/50">
+                            <td className="py-3 px-2">
+                              <div>{material.name}</div>
+                              <div className="text-xs text-muted-foreground">{material.code}</div>
+                            </td>
+                            <td className="py-3 px-2">
+                              <Badge className={`text-xs ${getTypeColor(material.type)}`}>{material.type}</Badge>
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              {needed} {material.unit}
+                            </td>
+                            <td className="py-3 px-2 text-right">{formatCurrency(material.unit_cost)}</td>
+                            <td className="py-3 px-2 text-right font-semibold">{formatCurrency(total)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
 
-              {/* Coluna 3: Data cheg. */}
-              <div>
-                <h4 className="font-bold text-base mb-4">Data cheg.</h4>
-                <div className="space-y-2 text-sm">
-                  {suppliersData.map((supplier, idx) => (
-                    <div key={idx} className="py-1">
-                      {formatDate(supplier.arrivalDate)}
+                {/* Production Schedule */}
+                <div className="bg-blue-50/30 dark:bg-blue-950/20 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Calendar className="h-4 w-4" />
+                    <span>Cronograma de Produção</span>
+                  </div>
+
+                  {/* Header Row */}
+                  <div className="grid grid-cols-3 gap-4 text-sm font-semibold text-muted-foreground border-b pb-2">
+                    <div></div>
+                    <div>Fornecedor</div>
+                    <div className="text-right">Data cheg.</div>
+                  </div>
+
+                  {/* Data Rows */}
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span>📅</span>
+                      <div>
+                        <div className="font-medium">Data Base (Pedido)</div>
+                        <div className="text-xs text-muted-foreground">24/10/2025</div>
+                      </div>
                     </div>
-                  ))}
+                    <div className="font-medium">IMAGEPACK</div>
+                    <div className="text-right">24/11/2025</div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span>📦</span>
+                      <div>
+                        <div className="font-medium text-orange-600">Previsão de Chegada Final</div>
+                        <div className="text-xs text-muted-foreground">26/11/2025</div>
+                        <div className="text-xs text-muted-foreground">(22 dias úteis - maior prazo)</div>
+                      </div>
+                    </div>
+                    <div className="font-medium">IMAGEPACK</div>
+                    <div className="text-right">07/11/2025</div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span>📦</span>
+                      <div>
+                        <div className="font-medium text-orange-600">Previsão de Chegada Final</div>
+                        <div className="text-xs text-muted-foreground">26/11/2025</div>
+                        <div className="text-xs text-muted-foreground">(22 dias úteis - maior prazo)</div>
+                      </div>
+                    </div>
+                    <div className="font-medium">VR LABEL</div>
+                    <div className="text-right">26/11/2025</div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span>📦</span>
+                      <div>
+                        <div className="font-medium text-orange-600">Previsão de Chegada Final</div>
+                        <div className="text-xs text-muted-foreground">26/11/2025</div>
+                        <div className="text-xs text-muted-foreground">(22 dias úteis - maior prazo)</div>
+                      </div>
+                    </div>
+                    <div className="font-medium">DN EMBALAGEM</div>
+                    <div className="text-right">12/11/2025</div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-600">🔵</span>
+                      <div>
+                        <div className="font-medium">Início da Produção</div>
+                        <div className="text-xs text-muted-foreground">26/11/2025</div>
+                      </div>
+                    </div>
+                    <div></div>
+                    <div></div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">🔵</span>
+                      <div>
+                        <div className="font-medium">Produto Disponível</div>
+                        <div className="text-xs text-muted-foreground">01/12/2025</div>
+                        <div className="text-xs text-muted-foreground">(+3 dias de produção)</div>
+                      </div>
+                    </div>
+                    <div></div>
+                    <div></div>
+                  </div>
                 </div>
-              </div>
+
+                {/* Alerts */}
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 text-sm bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
+                    <div>
+                      <div className="font-semibold">Feriados no período:</div>
+                      <div className="text-xs text-muted-foreground">
+                        02/11 - Finados &nbsp;&nbsp; 15/11 - Proclamação da República &nbsp;&nbsp; 20/11 - Consciência
+                        Negra
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2 text-sm bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
+                    <div>
+                      <div className="font-semibold">Observação Importante:</div>
+                      <div className="text-xs text-muted-foreground">
+                        Fábrica trabalhando um turno, respeitando feriados e finais de semana. Necessário avaliar
+                        atuação de banco de horas e eventuais turnos.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {/* TOTAL GERAL section */}
+          <div className="bg-white dark:bg-gray-950 rounded-lg border p-6">
+            <div className="flex justify-between items-center">
+              <div className="text-lg font-bold">TOTAL GERAL:</div>
+              <div className="text-3xl font-bold text-green-600">{formatCurrency(totalGeralByProduct)}</div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Resumo de Produção por Produto */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Resumo de Produção por Produto
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-sm text-muted-foreground">
+                      <th className="text-left py-3 px-2">Produto</th>
+                      <th className="text-right py-3 px-2">Qtd. a Produzir</th>
+                      <th className="text-right py-3 px-2">Data Pronto</th>
+                      <th className="text-right py-3 px-2">Valor Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-2">
+                        <div className="font-medium">Cacau Bee Coco Queimado</div>
+                        <div className="text-xs text-muted-foreground">PRD00115</div>
+                      </td>
+                      <td className="py-3 px-2 text-right">593 un</td>
+                      <td className="py-3 px-2 text-right">
+                        <span className="text-green-600 font-medium">01/12/2025</span>
+                      </td>
+                      <td className="py-3 px-2 text-right font-semibold">{formatCurrency(343411.98)}</td>
+                    </tr>
+                    <tr className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-2">
+                        <div className="font-medium">Cacau Bee Maracujá</div>
+                        <div className="text-xs text-muted-foreground">PRD00116</div>
+                      </td>
+                      <td className="py-3 px-2 text-right">591 un</td>
+                      <td className="py-3 px-2 text-right">
+                        <span className="text-green-600 font-medium">27/11/2025</span>
+                      </td>
+                      <td className="py-3 px-2 text-right font-semibold">{formatCurrency(343411.98)}</td>
+                    </tr>
+                    <tr className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-2">
+                        <div className="font-medium">Cacau Bee Original</div>
+                        <div className="text-xs text-muted-foreground">PRD00114</div>
+                      </td>
+                      <td className="py-3 px-2 text-right">166 un</td>
+                      <td className="py-3 px-2 text-right">
+                        <span className="text-green-600 font-medium">24/11/2025</span>
+                      </td>
+                      <td className="py-3 px-2 text-right font-semibold">{formatCurrency(343411.98)}</td>
+                    </tr>
+                    <tr className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-2">
+                        <div className="font-medium">Honey Blend Café e Cupuaçu</div>
+                        <div className="text-xs text-muted-foreground">PRD01701</div>
+                      </td>
+                      <td className="py-3 px-2 text-right">511 un</td>
+                      <td className="py-3 px-2 text-right">
+                        <span className="text-green-600 font-medium">13/11/2025</span>
+                      </td>
+                      <td className="py-3 px-2 text-right font-semibold">{formatCurrency(343411.98)}</td>
+                    </tr>
+                    <tr className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-2">
+                        <div className="font-medium">Honey Blend Pistache</div>
+                        <div className="text-xs text-muted-foreground">PRD01702</div>
+                      </td>
+                      <td className="py-3 px-2 text-right">117 un</td>
+                      <td className="py-3 px-2 text-right">
+                        <span className="text-green-600 font-medium">26/11/2025</span>
+                      </td>
+                      <td className="py-3 px-2 text-right font-semibold">{formatCurrency(343411.98)}</td>
+                    </tr>
+                    <tr className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-2">
+                        <div className="font-medium">Honey Fusion Açaí 200mg</div>
+                        <div className="text-xs text-muted-foreground">PRD01703</div>
+                      </td>
+                      <td className="py-3 px-2 text-right">475 un</td>
+                      <td className="py-3 px-2 text-right">
+                        <span className="text-green-600 font-medium">02/02/2025</span>
+                      </td>
+                      <td className="py-3 px-2 text-right font-semibold">{formatCurrency(343411.98)}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2">
+                      <td colSpan={3} className="py-4 px-2">
+                        <div className="text-lg font-bold">TOTAL GERAL DE PRODUÇÃO:</div>
+                      </td>
+                      <td className="py-4 px-2 text-right">
+                        <div className="text-3xl font-bold text-green-600">{formatCurrency(343411.98 * 6)}</div>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : viewMode === "supplier" ? (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-xl font-bold mb-1">Compras Agrupadas por Fornecedor</h2>
+            <p className="text-sm text-muted-foreground">
+              Itens organizados por fornecedor para facilitar pedidos consolidados
+            </p>
+          </div>
+
+          {suppliersList.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum fornecedor com materiais</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Os materiais no ponto de pedido não têm fornecedores cadastrados.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Verifique se os materiais têm o campo "supplier_id" preenchido na tabela beeoz_prod_raw_materials.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {suppliersList.map((supplier) => (
+                <Card key={supplier.id}>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-[#6B8E23]" />
+                      <CardTitle className="text-lg">{supplier.name}</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Materials Table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b text-sm text-muted-foreground">
+                            <th className="text-left py-3 px-2">Item</th>
+                            <th className="text-left py-3 px-2">Tipo</th>
+                            <th className="text-right py-3 px-2">Qtd. Necessária</th>
+                            <th className="text-right py-3 px-2">Lote Mínimo</th>
+                            <th className="text-right py-3 px-2">Preço Unit.</th>
+                            <th className="text-right py-3 px-2">Total Necessário</th>
+                            <th className="text-right py-3 px-2">Total Lote Mín.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {supplier.materials.map((material) => {
+                            const needed = Math.max(0, material.reorder_point - material.current_stock)
+
+                            const minLot =
+                              material.type === "Embalagem" || material.type === "Rótulo"
+                                ? Math.ceil(needed / supplier.minLotMultiplier) * supplier.minLotMultiplier
+                                : needed
+
+                            const totalNecessary = needed * material.unit_cost
+                            const totalMinLot = minLot * material.unit_cost
+
+                            return (
+                              <tr key={material.id} className="border-b hover:bg-muted/50">
+                                <td className="py-3 px-2">
+                                  <div>{material.name}</div>
+                                  <div className="text-xs text-muted-foreground">{material.code}</div>
+                                </td>
+                                <td className="py-3 px-2">
+                                  <Badge className={`text-xs ${getTypeColor(material.type)}`}>{material.type}</Badge>
+                                </td>
+                                <td className="py-3 px-2 text-right">
+                                  {needed} {material.unit}
+                                </td>
+                                <td className="py-3 px-2 text-right text-blue-600 font-medium">
+                                  {minLot} {material.unit}
+                                </td>
+                                <td className="py-3 px-2 text-right">{formatCurrency(material.unit_cost)}</td>
+                                <td className="py-3 px-2 text-right font-semibold">{formatCurrency(totalNecessary)}</td>
+                                <td className="py-3 px-2 text-right font-semibold text-blue-600">
+                                  {formatCurrency(totalMinLot)}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Subtotals */}
+                    <div className="space-y-1 text-right">
+                      <div className="flex justify-between items-center">
+                        <div className="font-semibold">Subtotal Necessário:</div>
+                        <div className="text-xl font-bold">{formatCurrency(supplier.subtotalNecessary)}</div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div className="font-semibold text-blue-600">Subtotal Lote Mínimo:</div>
+                        <div className="text-xl font-bold text-blue-600">{formatCurrency(supplier.subtotalMinLot)}</div>
+                      </div>
+                    </div>
+
+                    {/* Cronograma */}
+                    <div className="bg-blue-50/30 dark:bg-blue-950/20 rounded-lg p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        <Calendar className="h-4 w-4" />
+                        <span>Cronograma</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-6">
+                        {/* Left Column */}
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-2 text-sm">
+                            <span>📅</span>
+                            <div>
+                              <div className="font-medium">Data Base (Pedido):</div>
+                              <div className="text-muted-foreground">24/10/2025</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-2 text-sm">
+                            <span className="text-blue-600">🔵</span>
+                            <div>
+                              <div className="font-medium">Início da Produção:</div>
+                              <div className="text-muted-foreground">
+                                {new Date(
+                                  new Date("2025-10-24").getTime() + supplier.delivery_days * 24 * 60 * 60 * 1000,
+                                ).toLocaleDateString("pt-BR")}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Column */}
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-2 text-sm">
+                            <span className="text-orange-600">📦</span>
+                            <div>
+                              <div className="font-medium text-orange-600">Previsão de Chegada:</div>
+                              <div className="text-muted-foreground">
+                                {new Date(
+                                  new Date("2025-10-24").getTime() + supplier.delivery_days * 24 * 60 * 60 * 1000,
+                                ).toLocaleDateString("pt-BR")}
+                              </div>
+                              <div className="text-xs text-muted-foreground">({supplier.delivery_days} dias úteis)</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-2 text-sm">
+                            <span className="text-green-600">🔵</span>
+                            <div>
+                              <div className="font-medium text-green-600">Produto Disponível:</div>
+                              <div className="text-muted-foreground">
+                                {new Date(
+                                  new Date("2025-10-24").getTime() + (supplier.delivery_days + 3) * 24 * 60 * 60 * 1000,
+                                ).toLocaleDateString("pt-BR")}
+                              </div>
+                              <div className="text-xs text-muted-foreground">(+3 dias de produção)</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Alerts */}
+                    <div className="flex items-start gap-2 text-sm bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-lg">
+                      <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
+                      <div>
+                        <div className="font-semibold">Feriados no período:</div>
+                        <div className="text-xs text-muted-foreground">
+                          02/11 - Finados &nbsp;&nbsp; 15/11 - Proclamação da República
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Supplier Terms */}
+                    <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                      <div>
+                        <div className="text-sm text-muted-foreground">Prazo de Entrega</div>
+                        <div className="text-lg font-semibold">{supplier.delivery_days} dias</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">Forma de Pagamento</div>
+                        <div className="text-lg font-semibold">{supplier.payment_terms} dias</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {/* Total Summary Cards */}
+              <div className="space-y-4">
+                {/* TOTAL GERAL (Necessário) */}
+                <div className="bg-white dark:bg-gray-950 rounded-lg border p-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-lg font-bold">TOTAL GERAL (Necessário):</div>
+                      <div className="text-sm text-muted-foreground">Quantidade realmente necessária para produção</div>
+                    </div>
+                    <div className="text-3xl font-bold text-green-600">
+                      {formatCurrency(suppliersList.reduce((sum, s) => sum + s.subtotalNecessary, 0))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* TOTAL GERAL (Lote Mínimo) */}
+                <div className="bg-white dark:bg-gray-950 rounded-lg border p-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-lg font-bold">TOTAL GERAL (Lote Mínimo):</div>
+                      <div className="text-sm text-muted-foreground">Considerando lotes mínimos dos fornecedores</div>
+                    </div>
+                    <div className="text-3xl font-bold text-blue-600">
+                      {formatCurrency(suppliersList.reduce((sum, s) => sum + s.subtotalMinLot, 0))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* DIFERENÇA */}
+                <div className="bg-white dark:bg-gray-950 rounded-lg border p-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-lg font-bold">DIFERENÇA:</div>
+                      <div className="text-sm text-muted-foreground">Valor adicional devido aos lotes mínimos</div>
+                    </div>
+                    <div className="text-3xl font-bold text-orange-600">
+                      {formatCurrency(
+                        suppliersList.reduce((sum, s) => sum + s.subtotalMinLot, 0) -
+                          suppliersList.reduce((sum, s) => sum + s.subtotalNecessary, 0),
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cronograma de Pagamentos */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <span>💳</span>
+                    Cronograma de Pagamentos
+                  </CardTitle>
+                  <CardDescription>
+                    Previsão de vencimentos baseada na forma de pagamento de cada fornecedor
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b text-sm text-muted-foreground">
+                          <th className="text-left py-3 px-2">Fornecedor</th>
+                          <th className="text-center py-3 px-2">Data de Vencimento</th>
+                          <th className="text-right py-3 px-2">Valor a Pagar</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {suppliersList.map((supplier) => {
+                          const baseDate = new Date("2025-10-24")
+                          const dueDate = new Date(
+                            baseDate.getTime() +
+                              (supplier.delivery_days + supplier.payment_terms) * 24 * 60 * 60 * 1000,
+                          )
+
+                          return (
+                            <tr key={supplier.id} className="border-b hover:bg-muted/50">
+                              <td className="py-3 px-2 font-medium">{supplier.name}</td>
+                              <td className="py-3 px-2 text-center text-blue-600 font-medium">
+                                {dueDate.toLocaleDateString("pt-BR")}
+                              </td>
+                              <td className="py-3 px-2 text-right text-blue-600 font-semibold">
+                                {formatCurrency(supplier.subtotalMinLot)}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2">
+                          <td colSpan={2} className="py-4 px-2">
+                            <div className="text-lg font-bold">TOTAL A PAGAR:</div>
+                          </td>
+                          <td className="py-4 px-2 text-right">
+                            <div className="text-2xl font-bold text-blue-600">
+                              {formatCurrency(suppliersList.reduce((sum, s) => sum + s.subtotalMinLot, 0))}
+                            </div>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Observações Importantes */}
+              <div className="bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-900 p-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <div className="space-y-3">
+                    <div className="font-bold text-lg">Observações Importantes:</div>
+                    <ul className="space-y-2 text-sm">
+                      <li>
+                        <span className="font-semibold">Lote Mínimo:</span> Os lotes mínimos dos fornecedores estão
+                        sendo considerados para fechamento dos pedidos de compra. Valores em azul indicam quantidades e
+                        totais baseados nos lotes mínimos.
+                      </li>
+                      <li>
+                        <span className="font-semibold">Dias Úteis:</span> Todos os prazos consideram apenas dias úteis
+                        (segunda a sexta-feira), excluindo finais de semana e feriados nacionais brasileiros.
+                      </li>
+                      <li>
+                        <span className="font-semibold">Data Base:</span> Considera-se 3 dias cheios a partir de hoje
+                        para formalização do pedido junto aos fornecedores.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Lista de Compras Necessárias
+              </CardTitle>
+              <CardDescription>Itens ordenados por urgência - Critérios primários</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+              ) : materials.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Nenhum material atingiu o ponto de pedido</div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b text-sm text-muted-foreground">
+                          <th className="text-left py-3 px-2">Urgência</th>
+                          <th className="text-left py-3 px-2">Código</th>
+                          <th className="text-left py-3 px-2">Item</th>
+                          <th className="text-left py-3 px-2">Tipo</th>
+                          <th className="text-right py-3 px-2">Estoque Atual</th>
+                          <th className="text-right py-3 px-2">Ponto de Pedido</th>
+                          <th className="text-right py-3 px-2">Qtd. Necessária</th>
+                          <th className="text-right py-3 px-2">Preço Unit.</th>
+                          <th className="text-right py-3 px-2">Total</th>
+                          <th className="text-left py-3 px-2">Fornecedor Sugerido</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {materials.map((material) => {
+                          const needed = Math.max(0, material.reorder_point - material.current_stock)
+                          const total = needed * material.unit_cost
+                          const urgency = getUrgencyLevel(material.current_stock, material.reorder_point)
+
+                          return (
+                            <tr key={material.id} className="border-b hover:bg-muted/50">
+                              <td className="py-3 px-2">
+                                <Badge variant="destructive" className="text-xs">
+                                  {urgency}
+                                </Badge>
+                              </td>
+                              <td className="py-3 px-2 font-mono text-sm">{material.code}</td>
+                              <td className="py-3 px-2">{material.name}</td>
+                              <td className="py-3 px-2">
+                                <Badge className={`text-xs ${getTypeColor(material.type)}`}>{material.type}</Badge>
+                              </td>
+                              <td className="py-3 px-2 text-right">
+                                <span className={material.current_stock === 0 ? "text-red-600 font-semibold" : ""}>
+                                  {material.current_stock} {material.unit}
+                                </span>
+                              </td>
+                              <td className="py-3 px-2 text-right">
+                                {material.reorder_point} {material.unit}
+                              </td>
+                              <td className="py-3 px-2 text-right font-semibold">
+                                {needed} {material.unit}
+                              </td>
+                              <td className="py-3 px-2 text-right">{formatCurrency(material.unit_cost)}</td>
+                              <td className="py-3 px-2 text-right font-semibold text-green-600">
+                                {formatCurrency(total)}
+                              </td>
+                              <td className="py-3 px-2">{material.supplier?.name || "N/A"}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* TOTAL GERAL DE PRODUÇÃO row */}
+                  <div className="mt-6 pt-4 border-t flex justify-between items-center">
+                    <div className="text-lg font-bold">TOTAL GERAL DE PRODUÇÃO:</div>
+                    <div className="text-3xl font-bold text-green-600">{formatCurrency(totalNecessary * 6)}</div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

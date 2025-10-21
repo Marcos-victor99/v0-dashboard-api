@@ -1,15 +1,27 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, TrendingUp, Package, Users, FileText, ShoppingCart, MoreVertical } from "lucide-react"
+import {
+  Search,
+  Package,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  ShoppingCart,
+  FileText,
+  Users,
+  PackageOpen,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
 
-type RawMaterial = {
+interface RawMaterial {
   id: number
   code: string
   name: string
@@ -19,7 +31,6 @@ type RawMaterial = {
   reorder_point: number
   unit: string
   unit_cost: number
-  status: string
 }
 
 export default function MateriasPrimas() {
@@ -27,6 +38,7 @@ export default function MateriasPrimas() {
   const [typeFilter, setTypeFilter] = useState("all")
   const [materials, setMaterials] = useState<RawMaterial[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set())
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,31 +49,27 @@ export default function MateriasPrimas() {
     fetchMaterials()
   }, [])
 
-  const fetchMaterials = async () => {
+  async function fetchMaterials() {
     try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from("beeoz_prod_raw_materials")
-        .select("*")
-        .eq("status", "ativo")
-        .order("name")
+      const { data, error } = await supabase.from("beeoz_prod_raw_materials").select("*").order("name")
 
       if (error) throw error
       setMaterials(data || [])
     } catch (error) {
-      console.error("[v0] Error fetching materials:", error)
+      console.error("Error fetching materials:", error)
     } finally {
       setLoading(false)
     }
   }
 
-  const stats = {
-    total: materials.length,
-    normal: materials.filter((m) => m.current_stock > m.reorder_point).length,
-    low: materials.filter(
-      (m) => m.current_stock > 0 && m.current_stock <= m.reorder_point && m.current_stock > m.min_stock,
-    ).length,
-    critical: materials.filter((m) => m.current_stock <= m.min_stock).length,
+  const toggleCard = (id: number) => {
+    const newExpanded = new Set(expandedCards)
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id)
+    } else {
+      newExpanded.add(id)
+    }
+    setExpandedCards(newExpanded)
   }
 
   const filteredMaterials = materials.filter((material) => {
@@ -72,158 +80,180 @@ export default function MateriasPrimas() {
     return matchesSearch && matchesType
   })
 
-  const calculateNeed = (current: number, reorderPoint: number) => {
+  const getStockStatus = (current: number, reorderPoint: number) => {
+    if (current === 0) return "critical"
+    if (current <= reorderPoint * 0.5) return "low"
+    if (current <= reorderPoint) return "normal"
+    return "good"
+  }
+
+  const stockStats = {
+    total: materials.length,
+    normal: materials.filter((m) => {
+      const status = getStockStatus(m.current_stock, m.reorder_point)
+      return status === "good"
+    }).length,
+    low: materials.filter((m) => {
+      const status = getStockStatus(m.current_stock, m.reorder_point)
+      return status === "low"
+    }).length,
+    critical: materials.filter((m) => {
+      const status = getStockStatus(m.current_stock, m.reorder_point)
+      return status === "critical"
+    }).length,
+  }
+
+  const getTypeBadgeColor = (type: string) => {
+    switch (type.toLowerCase()) {
+      case "ingrediente":
+        return "bg-amber-100 text-amber-800 border-amber-200"
+      case "embalagem":
+        return "bg-blue-100 text-blue-800 border-blue-200"
+      case "rótulo":
+      case "rotulo":
+        return "bg-purple-100 text-purple-800 border-purple-200"
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200"
+    }
+  }
+
+  const calculateNecessity = (current: number, reorderPoint: number) => {
     const need = Math.max(0, reorderPoint - current)
     return need
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando matérias-primas...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Carregando matérias-primas...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-balance">Matérias-Primas</h1>
           <p className="text-muted-foreground">Gestão de ingredientes, embalagens e insumos para produção</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90">
-          <TrendingUp className="h-4 w-4 mr-2" />
+        <Button className="bg-[#6B8E23] hover:bg-[#556B1C]">
+          <ShoppingCart className="h-4 w-4 mr-2" />
           Análise de Compras
         </Button>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="border-gray-200">
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total de Itens</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total de Itens</p>
+                <p className="text-3xl font-bold mt-2">{stockStats.total}</p>
+              </div>
+              <Package className="h-8 w-8 text-gray-400" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="border-green-200">
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Estoque Normal</CardTitle>
-              <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center">
-                <div className="h-2 w-2 rounded-full bg-green-600"></div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Estoque Normal</p>
+                <p className="text-3xl font-bold mt-2">{stockStats.normal}</p>
               </div>
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats.normal}</div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="border-orange-200">
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Estoque Baixo</CardTitle>
-              <div className="h-5 w-5 rounded-full bg-orange-100 flex items-center justify-center">
-                <div className="h-2 w-2 rounded-full bg-orange-600"></div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Estoque Baixo</p>
+                <p className="text-3xl font-bold mt-2">{stockStats.low}</p>
               </div>
+              <AlertTriangle className="h-8 w-8 text-orange-500" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats.low}</div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
+        <Card className="border-red-200">
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Estoque Crítico</CardTitle>
-              <div className="h-5 w-5 rounded-full bg-red-100 flex items-center justify-center">
-                <div className="h-2 w-2 rounded-full bg-red-600"></div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Estoque Crítico</p>
+                <p className="text-3xl font-bold mt-2">{stockStats.critical}</p>
               </div>
+              <AlertCircle className="h-8 w-8 text-red-500" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats.critical}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por nome ou código..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Todos os Tipos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Tipos</SelectItem>
-                <SelectItem value="Ingrediente">Ingrediente</SelectItem>
-                <SelectItem value="Embalagem">Embalagem</SelectItem>
-                <SelectItem value="Insumo">Insumo</SelectItem>
-              </SelectContent>
-            </Select>
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold">Filtros</h3>
+        <div className="flex gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome ou código..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Todos os Tipos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Tipos</SelectItem>
+              <SelectItem value="Ingrediente">Ingrediente</SelectItem>
+              <SelectItem value="Embalagem">Embalagem</SelectItem>
+              <SelectItem value="Rótulo">Rótulo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-      {/* Materials Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredMaterials.map((material) => {
-          const need = calculateNeed(material.current_stock, material.reorder_point)
+          const necessity = calculateNecessity(material.current_stock, material.reorder_point)
+          const isExpanded = expandedCards.has(material.id)
 
           return (
-            <Card key={material.id} className="relative">
-              <CardHeader className="pb-3">
+            <Card key={material.id} className="border-gray-200">
+              <CardContent className="pt-6 space-y-4">
+                {/* Header */}
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-lg">{material.name}</CardTitle>
-                    <CardDescription className="text-sm text-blue-600">{material.code}</CardDescription>
+                    <h3 className="font-semibold text-lg">{material.name}</h3>
+                    <p className="text-sm text-muted-foreground">{material.code}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {material.type}
-                    </Badge>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <MoreVertical className="h-4 w-4" />
+                    <Badge className={getTypeBadgeColor(material.type)}>{material.type}</Badge>
+                    <Button variant="ghost" size="sm" onClick={() => toggleCard(material.id)} className="h-6 w-6 p-0">
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Current Stock */}
-                <div>
+
+                {/* Current Stock - Large Display */}
+                <div className="text-center py-4">
                   <p className="text-sm text-muted-foreground mb-1">Estoque Atual:</p>
-                  <p className="text-3xl font-bold">
+                  <p className="text-4xl font-bold">
                     {material.current_stock} {material.unit}
                   </p>
                 </div>
 
-                {/* Stock Metrics */}
-                <div className="grid grid-cols-3 gap-2 text-sm">
+                {/* Stock Metrics - 3 columns */}
+                <div className="grid grid-cols-3 gap-2 text-center text-sm">
                   <div>
                     <p className="text-muted-foreground mb-1">Estoque Mínimo</p>
                     <p className="font-semibold">
@@ -238,39 +268,34 @@ export default function MateriasPrimas() {
                   </div>
                   <div>
                     <p className="text-muted-foreground mb-1">Necessidade</p>
-                    <p className="font-semibold text-red-600">
-                      {need} {material.unit}
+                    <p className="font-semibold text-orange-600">
+                      {necessity} {material.unit}
                     </p>
                   </div>
                 </div>
 
-                {/* Stock Level Indicator */}
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">{material.current_stock}</p>
-                </div>
-
-                {/* Action Buttons */}
+                {/* Action Buttons - 2x2 Grid */}
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="default" size="sm" className="bg-[#6b8e23] hover:bg-[#5a7a1e]">
-                    <Package className="h-3 w-3 mr-1" />
+                  <Button variant="default" className="bg-[#6B8E23] hover:bg-[#556B1C]">
+                    <PackageOpen className="h-4 w-4 mr-2" />
                     Ver Detalhes
                   </Button>
-                  <Button variant="outline" size="sm">
-                    <FileText className="h-3 w-3 mr-1" />
+                  <Button variant="outline">
+                    <FileText className="h-4 w-4 mr-2" />
                     Ficha Técnica
                   </Button>
-                  <Button variant="outline" size="sm">
-                    <Users className="h-3 w-3 mr-1" />
+                  <Button variant="outline">
+                    <Users className="h-4 w-4 mr-2" />
                     Fornecedores
                   </Button>
-                  <Button variant="outline" size="sm">
-                    <Package className="h-3 w-3 mr-1" />
+                  <Button variant="outline">
+                    <Package className="h-4 w-4 mr-2" />
                     Lotes
                   </Button>
                 </div>
 
-                {/* Purchase Button */}
-                <Button className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white">
+                {/* Buy Button */}
+                <Button className="w-full bg-green-600 hover:bg-green-700">
                   <ShoppingCart className="h-4 w-4 mr-2" />
                   Comprar
                 </Button>
@@ -281,11 +306,11 @@ export default function MateriasPrimas() {
       </div>
 
       {filteredMaterials.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">Nenhuma matéria-prima encontrada.</p>
-          </CardContent>
-        </Card>
+        <div className="text-center py-12">
+          <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Nenhum material encontrado</h3>
+          <p className="text-muted-foreground">Tente ajustar os filtros ou termos de busca.</p>
+        </div>
       )}
     </div>
   )
