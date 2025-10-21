@@ -1,0 +1,30 @@
+-- Insert products
+INSERT INTO beeoz_prod_products (code, name, category_id, current_stock, status) VALUES
+  ('PRD00201', 'Propolift Extrato Alcoólico Verde', 'CAT001', 0, 'critical'),
+  ('PRD00202', 'Propolift Extrato Alcoólico Vermelho', 'CAT001', 0, 'critical'),
+  ('PRD00203', 'Propolift Extrato Aquoso Verde', 'CAT001', 0, 'critical'),
+  ('PRD01601', 'Honey Fusion Açaí 200mg', 'CAT002', 15254, 'normal'),
+  ('PRD01602', 'Honey Fusion Café e Cupuaçu', 'CAT002', 15254, 'normal'),
+  ('PRD01603', 'Honey Fusion Pistache', 'CAT002', 15254, 'normal'),
+  ('PRD01604', 'Honey Fusion Cacau e Avelã', 'CAT002', 15254, 'normal'),
+  ('PRD00958', 'Mel Biomas Laranja', 'CAT003', 450, 'normal'),
+  ('PRD01554', 'Mel Biomas Cipó Uva', 'CAT003', 465, 'normal'),
+  ('PRD00960', 'Mel Biomas Eucalipto', 'CAT003', 5500, 'normal'),
+  ('PRD00959', 'Mel Biomas Silvestre', 'CAT003', 5500, 'normal'),
+  ('PRD00957', 'Mel Biomas Bracatinga', 'CAT003', 452, 'normal'),
+  ('PRD00961', 'Mel Biomas Aroeira', 'CAT003', 5500, 'normal'),
+  ('PRD00114', 'Cacau Bee Original', 'CAT004', 2787, 'normal'),
+  ('PRD00115', 'Cacau Bee Coco Queimado', 'CAT004', 4800, 'normal'),
+  ('PRD00116', 'Cacau Bee Maracujá', 'CAT004', 83, 'normal'),
+  ('PRD01523', 'Honey Pepper Original', 'CAT005', 15254, 'normal'),
+  ('PRD01524', 'Honey Pepper Extra Forte', 'CAT005', 15254, 'normal'),
+  ('PRD01525', 'Honey Pepper Wasabi', 'CAT005', 15254, 'normal'),
+  ('PRD01526', 'Honey Pepper Tropical', 'CAT005', 15254, 'normal'),
+  ('PRD01701', 'Honey Blend Café e Cupuaçu', 'CAT006', 15254, 'normal'),
+  ('PRD01702', 'Honey Blend Pistache', 'CAT006', 15254, 'normal')
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  category_id = EXCLUDED.category_id,
+  current_stock = EXCLUDED.current_stock,
+  status = EXCLUDED.status,
+  updated_at = NOW();

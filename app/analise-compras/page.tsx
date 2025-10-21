@@ -1,293 +1,75 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, Package, AlertTriangle, Phone, Mail, MessageCircle, ShoppingCart } from "lucide-react"
+import { Package, AlertTriangle, TrendingUp, Download } from "lucide-react"
+import { createClient } from "@/lib/supabase-client"
+
+interface RawMaterial {
+  id: number
+  code: string
+  name: string
+  type: string
+  current_stock: number
+  min_stock: number
+  reorder_point: number
+  unit_cost: number
+  unit: string
+  supplier_id: number
+  supplier?: {
+    id: number
+    code: string
+    name: string
+    delivery_days: number
+    payment_terms: number
+  }
+}
+
+interface SupplierGroup {
+  supplier: string
+  materials: RawMaterial[]
+  subtotalNeeded: number
+  subtotalMinLot: number
+  leadTime: number
+  paymentTerms: number
+}
 
 export default function AnáliseCompras() {
-  const [selectedSupplier, setSelectedSupplier] = useState<string>("")
-  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<"material" | "supplier">("material")
+  const [materials, setMaterials] = useState<RawMaterial[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const supplierData = {
-    "VR LABEL": {
-      email: "contato@vrlabel.com.br",
-      phone: "(11) 99999-9999",
-      items: [
-        {
-          code: "ING004",
-          name: "Açaí em Pó",
-          type: "Ingrediente",
-          needed: 10,
-          minLot: 10,
-          unitPrice: 85.5,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING005",
-          name: "Cacau em Pó Alcalino",
-          type: "Ingrediente",
-          needed: 20,
-          minLot: 20,
-          unitPrice: 45.3,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING007",
-          name: "Café Solúvel",
-          type: "Ingrediente",
-          needed: 10,
-          minLot: 10,
-          unitPrice: 120.0,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING012",
-          name: "Coco Queimado",
-          type: "Ingrediente",
-          needed: 8,
-          minLot: 8,
-          unitPrice: 95.75,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING008",
-          name: "Cupuaçu em Pó",
-          type: "Ingrediente",
-          needed: 8,
-          minLot: 8,
-          unitPrice: 110.2,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING013",
-          name: "Maracujá Desidratado",
-          type: "Ingrediente",
-          needed: 6,
-          minLot: 6,
-          unitPrice: 135.4,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING001",
-          name: "Mel Orgânico",
-          type: "Ingrediente",
-          needed: 40,
-          minLot: 40,
-          unitPrice: 65.8,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING006",
-          name: "Pasta de Avelã",
-          type: "Ingrediente",
-          needed: 8,
-          minLot: 8,
-          unitPrice: 180.5,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING010",
-          name: "Pimenta Calabresa",
-          type: "Ingrediente",
-          needed: 2,
-          minLot: 2,
-          unitPrice: 220.0,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING009",
-          name: "Pistache Triturado",
-          type: "Ingrediente",
-          needed: 6,
-          minLot: 6,
-          unitPrice: 250.3,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING002",
-          name: "Própolis Verde",
-          type: "Ingrediente",
-          needed: 4,
-          minLot: 4,
-          unitPrice: 450.0,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING003",
-          name: "Própolis Vermelha",
-          type: "Ingrediente",
-          needed: 4,
-          minLot: 4,
-          unitPrice: 520.0,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING011",
-          name: "Wasabi em Pó",
-          type: "Ingrediente",
-          needed: 2,
-          minLot: 2,
-          unitPrice: 380.0,
-          category: "Ingrediente",
-        },
-      ],
-    },
-    "DN EMBALAGEM": {
-      email: "contato@dnembalagem.com.br",
-      phone: "(11) 99999-9999",
-      items: [
-        {
-          code: "EMB001",
-          name: "Frascos PET 200g",
-          type: "Embalagem",
-          needed: 2000,
-          minLot: 2000,
-          unitPrice: 3.5,
-          category: "Embalagem",
-        },
-        {
-          code: "EMB002",
-          name: "Frascos PET 300g",
-          type: "Embalagem",
-          needed: 2000,
-          minLot: 2000,
-          unitPrice: 4.2,
-          category: "Embalagem",
-        },
-        {
-          code: "EMB003",
-          name: "Frascos Vidro 250g",
-          type: "Embalagem",
-          needed: 1200,
-          minLot: 1200,
-          unitPrice: 8.5,
-          category: "Embalagem",
-        },
-        {
-          code: "EMB004",
-          name: "Tampas Flip Top",
-          type: "Embalagem",
-          needed: 2000,
-          minLot: 2000,
-          unitPrice: 1.8,
-          category: "Embalagem",
-        },
-        {
-          code: "EMB005",
-          name: "Tampas Rosca",
-          type: "Embalagem",
-          needed: 2000,
-          minLot: 2000,
-          unitPrice: 1.45,
-          category: "Embalagem",
-        },
-      ],
-    },
-    IMAGEPACK: {
-      email: "contato@imagepack.com.br",
-      phone: "(11) 99999-9999",
-      items: [
-        {
-          code: "ROT004",
-          name: "Rótulos Cacau Bee",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-        {
-          code: "ROT002",
-          name: "Rótulos Honey Fusion",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-        {
-          code: "ROT005",
-          name: "Rótulos Honey Pepper",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-        {
-          code: "ROT003",
-          name: "Rótulos Mel Biomas",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-        {
-          code: "ROT001",
-          name: "Rótulos Propolift",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-      ],
-    },
-  }
+  useEffect(() => {
+    fetchMaterials()
+  }, [])
 
-  const analysis = {
-    product: {
-      code: "PRD00201",
-      name: "Propolift Extrato Alcoólico Verde",
-      currentStock: 0,
-      minStock: 50,
-      reorderPoint: 30,
-    },
-    components: [
-      {
-        code: "MP001",
-        name: "Própolis Verde",
-        category: "Própolis",
-        supplier: "Apiário São Paulo",
-        physicalStock: 2,
-        reserved: 0,
-        available: 2,
-        minStock: 50,
-        unitCost: 150,
-        totalValue: 300,
-      },
-      {
-        code: "MP002",
-        name: "Álcool 70%",
-        category: "Solvente",
-        supplier: "Química Brasil",
-        physicalStock: 15,
-        reserved: 5,
-        available: 10,
-        minStock: 100,
-        unitCost: 25,
-        totalValue: 375,
-      },
-      {
-        code: "MP003",
-        name: "Frasco 30ml",
-        category: "Embalagem",
-        supplier: "Embalagens SP",
-        physicalStock: 50,
-        reserved: 20,
-        available: 30,
-        minStock: 200,
-        unitCost: 2.5,
-        totalValue: 125,
-      },
-    ],
-    totalStockValue: 800,
+  const fetchMaterials = async () => {
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("beeoz_prod_raw_materials")
+        .select(`
+          *,
+          supplier:beeoz_prod_suppliers(
+            id,
+            code,
+            name,
+            delivery_days,
+            payment_terms
+          )
+        `)
+        .order("current_stock", { ascending: true })
+
+      if (error) throw error
+      setMaterials(data || [])
+    } catch (error) {
+      console.error("Error fetching materials:", error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const formatCurrency = (value: number) => {
@@ -295,17 +77,6 @@ export default function AnáliseCompras() {
       style: "currency",
       currency: "BRL",
     }).format(value)
-  }
-
-  const getStockStatus = (available: number, minStock: number) => {
-    if (available === 0) return <Badge variant="destructive">Crítico</Badge>
-    if (available <= minStock * 0.5) return <Badge className="bg-yellow-500 hover:bg-yellow-600">Baixo</Badge>
-    if (available <= minStock) return <Badge variant="secondary">Atenção</Badge>
-    return (
-      <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-        OK
-      </Badge>
-    )
   }
 
   const getTypeBadge = (type: string) => {
@@ -317,373 +88,265 @@ export default function AnáliseCompras() {
     return <Badge className={colors[type as keyof typeof colors] || ""}>{type}</Badge>
   }
 
-  const handleWhatsApp = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    const items = data.items.map((item) => `• ${item.name} (${item.code}): ${item.needed} un`).join("\n")
+  const groupBySupplier = (): SupplierGroup[] => {
+    const grouped = materials.reduce(
+      (acc, material) => {
+        const supplierName = material.supplier?.name || "Sem Fornecedor"
+        if (!acc[supplierName]) {
+          acc[supplierName] = []
+        }
+        acc[supplierName].push(material)
+        return acc
+      },
+      {} as Record<string, RawMaterial[]>,
+    )
 
-    const message = `Olá! Gostaria de solicitar uma cotação para os seguintes itens:\n\n${items}\n\nAguardo retorno.`
-    const phone = data.phone.replace(/\D/g, "")
-    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, "_blank")
+    return Object.entries(grouped).map(([supplier, materials]) => {
+      const subtotalNeeded = materials.reduce((sum, m) => {
+        const needed = Math.max(0, m.reorder_point - m.current_stock)
+        return sum + needed * m.unit_cost
+      }, 0)
+
+      const subtotalMinLot = materials.reduce((sum, m) => {
+        const needed = Math.max(0, m.reorder_point - m.current_stock)
+        const minLot = Math.max(needed, m.min_stock)
+        return sum + minLot * m.unit_cost
+      }, 0)
+
+      return {
+        supplier,
+        materials,
+        subtotalNeeded,
+        subtotalMinLot,
+        leadTime: materials[0]?.supplier?.delivery_days || 15,
+        paymentTerms: materials[0]?.supplier?.payment_terms || 30,
+      }
+    })
   }
 
-  const handleEmail = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    const items = data.items
-      .map((item) => `• ${item.name} (${item.code}): ${item.needed} un - ${formatCurrency(item.unitPrice)}`)
-      .join("\n")
+  const totalItems = materials.length
+  const criticalItems = materials.filter((m) => m.current_stock <= m.min_stock).length
+  const totalNeeded = materials.reduce((sum, m) => {
+    const needed = Math.max(0, m.reorder_point - m.current_stock)
+    return sum + needed * m.unit_cost
+  }, 0)
+  const totalMinLot = materials.reduce((sum, m) => {
+    const needed = Math.max(0, m.reorder_point - m.current_stock)
+    const minLot = Math.max(needed, m.min_stock)
+    return sum + minLot * m.unit_cost
+  }, 0)
+  const difference = totalMinLot - totalNeeded
 
-    const subject = "Solicitação de Cotação"
-    const body = `Prezados,\n\nGostaria de solicitar uma cotação para os seguintes itens:\n\n${items}\n\nAguardo retorno.\n\nAtenciosamente,\nBeeoz Produção Ltda`
-
-    window.location.href = `mailto:${data.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando análise de compras...</p>
+        </div>
+      </div>
+    )
   }
-
-  const handleCall = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    window.location.href = `tel:${data.phone.replace(/\D/g, "")}`
-  }
-
-  const formatPurchaseOrderEmail = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    const items = data.items
-      .map((item) => {
-        const totalNeeded = item.needed * item.unitPrice
-        const totalMinLot = item.minLot * item.unitPrice
-        return `• ${item.name} (${item.code})\n  Qtd. Necessária: ${item.needed} un - ${formatCurrency(totalNeeded)}\n  Lote Mínimo: ${item.minLot} un - ${formatCurrency(totalMinLot)}`
-      })
-      .join("\n\n")
-
-    const totalNeeded = data.items.reduce((sum, item) => sum + item.needed * item.unitPrice, 0)
-    const totalMinLot = data.items.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0)
-
-    const subject = `Pedido de Compra - ${supplier}`
-    const body = `Prezados ${supplier},
-
-Segue pedido de compra:
-
-DADOS DO COMPRADOR:
-Empresa: Beeoz Produção Ltda
-CNPJ: 12.345.678/0001-90
-Endereço: Rua das Indústrias, 123 - São Paulo/SP
-Contato: (11) 99999-9999
-
-ITENS DO PEDIDO:
-
-${items}
-
-TOTAIS:
-Total Necessário: ${formatCurrency(totalNeeded)}
-Total Lote Mínimo: ${formatCurrency(totalMinLot)}
-
-CONDIÇÕES:
-Prazo de Entrega: 15 dias
-Forma de Pagamento: 30 dias
-
-Atenciosamente,
-Beeoz Produção Ltda`
-
-    window.location.href = `mailto:${data.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-  }
-
-  const formatPurchaseOrderWhatsApp = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    const items = data.items
-      .map(
-        (item) => `• ${item.name} (${item.code}): ${item.minLot} un - ${formatCurrency(item.minLot * item.unitPrice)}`,
-      )
-      .join("\n")
-
-    const totalMinLot = data.items.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0)
-
-    const message = `Olá! Segue pedido de compra:\n\n${items}\n\n*Total: ${formatCurrency(totalMinLot)}*\n\nPrazo: 15 dias\nPagamento: 30 dias`
-    const phone = data.phone.replace(/\D/g, "")
-    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, "_blank")
-  }
-
-  const selectedSupplierData = selectedSupplier ? supplierData[selectedSupplier as keyof typeof supplierData] : null
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-balance">Análise de Compras</h1>
-        <p className="text-muted-foreground">Análise detalhada de necessidades de compra por produto</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-balance">Análise de Compras - Matérias-Primas</h1>
+          <p className="text-muted-foreground">
+            Análise de necessidades de reposição de matérias-primas, embalagens e insumos
+          </p>
+        </div>
+        <Button variant="outline" className="gap-2 bg-transparent">
+          <Download className="h-4 w-4" />
+          Exportar
+        </Button>
       </div>
 
-      <Tabs defaultValue="produto" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="produto">Por Produto</TabsTrigger>
-          <TabsTrigger value="fornecedor">Por Fornecedor</TabsTrigger>
-        </TabsList>
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Itens</CardTitle>
+            <Package className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalItems}</div>
+            <p className="text-xs text-muted-foreground">Itens listados</p>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="produto" className="space-y-6">
-          {/* Product Info */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    {analysis.product.name}
-                  </CardTitle>
-                  <CardDescription>Código: {analysis.product.code}</CardDescription>
-                </div>
-                <Badge variant="destructive" className="text-lg">
-                  <AlertTriangle className="h-4 w-4 mr-1" />
-                  Estoque Crítico
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <div className="text-sm text-muted-foreground">Estoque Atual</div>
-                  <div className="text-2xl font-bold">{analysis.product.currentStock}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Estoque Mínimo</div>
-                  <div className="text-2xl font-bold">{analysis.product.minStock}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Ponto de Reposição</div>
-                  <div className="text-2xl font-bold">{analysis.product.reorderPoint}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Itens Críticos</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{criticalItems}</div>
+            <p className="text-xs text-muted-foreground">Estoque mínimo</p>
+          </CardContent>
+        </Card>
 
-          {/* Components Analysis */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Componentes e Matérias-Primas</CardTitle>
-              <CardDescription>Análise de disponibilidade de cada componente necessário</CardDescription>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Valor Necessário</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalNeeded)}</div>
+            <p className="text-xs text-muted-foreground">Quantidade real necessária</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Valor Lote Mínimo</CardTitle>
+            <TrendingUp className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalMinLot)}</div>
+            <p className="text-xs text-muted-foreground">Considerando lote mínimo</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          variant={viewMode === "material" ? "default" : "outline"}
+          className={viewMode === "material" ? "bg-green-600 hover:bg-green-700" : "bg-transparent"}
+          onClick={() => setViewMode("material")}
+        >
+          <Package className="h-4 w-4 mr-2" />
+          Por Matéria-Prima
+        </Button>
+        <Button
+          variant={viewMode === "supplier" ? "default" : "outline"}
+          className={viewMode === "supplier" ? "bg-green-600 hover:bg-green-700" : "bg-transparent"}
+          onClick={() => setViewMode("supplier")}
+        >
+          <Package className="h-4 w-4 mr-2" />
+          Por Fornecedor
+        </Button>
+      </div>
+
+      {viewMode === "material" ? (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              <div>
+                <CardTitle>Compras por Matéria-Prima</CardTitle>
+                <CardDescription>
+                  Itens ordenados por itens. Use fornecedor agrupado, ordenados por urgência
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Urgência</TableHead>
                     <TableHead>Código</TableHead>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Categoria</TableHead>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="text-right">Estoque Atual</TableHead>
+                    <TableHead className="text-right">Ponto de Pedido</TableHead>
+                    <TableHead className="text-right">Qtd. Necessária</TableHead>
+                    <TableHead className="text-right">Lote Mínimo</TableHead>
+                    <TableHead className="text-right">Preço Unit.</TableHead>
+                    <TableHead className="text-right">Total Necessário</TableHead>
+                    <TableHead className="text-right">Total Lote Mín.</TableHead>
                     <TableHead>Fornecedor</TableHead>
-                    <TableHead className="text-right">Físico</TableHead>
-                    <TableHead className="text-right">Reservado</TableHead>
-                    <TableHead className="text-right">Disponível</TableHead>
-                    <TableHead className="text-right">Mínimo</TableHead>
-                    <TableHead className="text-right">Custo Unit.</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Prazo</TableHead>
+                    <TableHead>Pagamento</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {analysis.components.map((component) => (
-                    <TableRow key={component.code}>
-                      <TableCell className="font-mono">{component.code}</TableCell>
-                      <TableCell className="font-medium">{component.name}</TableCell>
-                      <TableCell>{component.category}</TableCell>
-                      <TableCell>{component.supplier}</TableCell>
-                      <TableCell className="text-right">{component.physicalStock}</TableCell>
-                      <TableCell className="text-right">{component.reserved}</TableCell>
-                      <TableCell className="text-right font-semibold">{component.available}</TableCell>
-                      <TableCell className="text-right">{component.minStock}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(component.unitCost)}</TableCell>
-                      <TableCell>{getStockStatus(component.available, component.minStock)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {materials.map((material) => {
+                    const needed = Math.max(0, material.reorder_point - material.current_stock)
+                    const minLot = Math.max(needed, material.min_stock)
+                    const totalNeeded = needed * material.unit_cost
+                    const totalMinLot = minLot * material.unit_cost
+                    const isCritical = material.current_stock <= material.min_stock
+
+                    return (
+                      <TableRow key={material.id}>
+                        <TableCell>{isCritical && <Badge variant="destructive">Crítico</Badge>}</TableCell>
+                        <TableCell className="font-mono">{material.code}</TableCell>
+                        <TableCell className="font-medium">{material.name}</TableCell>
+                        <TableCell>{getTypeBadge(material.type)}</TableCell>
+                        <TableCell className="text-right">
+                          <span className={material.current_stock === 0 ? "text-red-600 font-semibold" : ""}>
+                            {material.current_stock} {material.unit}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {material.reorder_point} {material.unit}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {needed} {material.unit}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className="text-blue-600 font-semibold">
+                            {minLot} {material.unit}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(material.unit_cost)}</TableCell>
+                        <TableCell className="text-right text-green-600 font-semibold">
+                          {formatCurrency(totalNeeded)}
+                        </TableCell>
+                        <TableCell className="text-right text-blue-600 font-semibold">
+                          {formatCurrency(totalMinLot)}
+                        </TableCell>
+                        <TableCell>{material.supplier?.name || "Sem Fornecedor"}</TableCell>
+                        <TableCell>{material.supplier?.delivery_days || 15} dias</TableCell>
+                        <TableCell>{material.supplier?.payment_terms || 30} dias</TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumo Financeiro</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between text-xl font-bold">
-                <span>Valor Total em Estoque:</span>
-                <span className="text-primary">{formatCurrency(analysis.totalStockValue)}</span>
+            <div className="mt-6 space-y-2 text-right font-bold">
+              <div className="flex justify-end gap-4">
+                <span>TOTAL NECESSÁRIO:</span>
+                <span className="text-green-600 w-32">{formatCurrency(totalNeeded)}</span>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <Button className="flex-1">
-              <FileText className="h-4 w-4 mr-2" />
-              Gerar Requisição de Compra
-            </Button>
-            <Button variant="outline" className="flex-1 bg-transparent">
-              Exportar Análise
-            </Button>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="fornecedor" className="space-y-6">
-          {Object.entries(supplierData).map(([supplier, data]) => {
-            const totalNeeded = data.items.reduce((sum, item) => sum + item.needed * item.unitPrice, 0)
-            const totalMinLot = data.items.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0)
-
-            return (
-              <Card key={supplier}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>{supplier}</CardTitle>
-                      <CardDescription>
-                        {data.items.length} itens • Subtotal Lote Mínimo: {formatCurrency(totalMinLot)}
-                      </CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 border-green-600 text-green-600 hover:bg-green-50 bg-transparent"
-                        onClick={() => handleWhatsApp(supplier)}
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        WhatsApp
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 border-blue-600 text-blue-600 hover:bg-blue-50 bg-transparent"
-                        onClick={() => handleEmail(supplier)}
-                      >
-                        <Mail className="h-4 w-4" />
-                        E-mail
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 border-purple-600 text-purple-600 hover:bg-purple-50 bg-transparent"
-                        onClick={() => handleCall(supplier)}
-                      >
-                        <Phone className="h-4 w-4" />
-                        Ligar
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="gap-2 bg-green-600 hover:bg-green-700"
-                        onClick={() => {
-                          setSelectedSupplier(supplier)
-                          setIsPurchaseModalOpen(true)
-                        }}
-                      >
-                        <ShoppingCart className="h-4 w-4" />
-                        Comprar
-                      </Button>
-                    </div>
+              <div className="flex justify-end gap-4">
+                <span>TOTAL LOTE MÍNIMO:</span>
+                <span className="text-blue-600 w-32">{formatCurrency(totalMinLot)}</span>
+              </div>
+              <div className="flex justify-end gap-4">
+                <span>DIFERENÇA:</span>
+                <span className="text-orange-600 w-32">{formatCurrency(difference)}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {groupBySupplier().map((supplierGroup) => (
+            <Card key={supplierGroup.supplier}>
+              <CardHeader className="bg-background">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-5 w-5 text-blue-600" />
+                    <CardTitle>{supplierGroup.supplier}</CardTitle>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead className="text-right">Qtd. Necessária</TableHead>
-                        <TableHead className="text-right">Lote Mínimo</TableHead>
-                        <TableHead className="text-right">Preço Unit.</TableHead>
-                        <TableHead className="text-right">Total Necessário</TableHead>
-                        <TableHead className="text-right">Total Lote Mín.</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.items.map((item) => (
-                        <TableRow key={item.code}>
-                          <TableCell className="font-mono">{item.code}</TableCell>
-                          <TableCell className="font-medium">{item.name}</TableCell>
-                          <TableCell>{getTypeBadge(item.type)}</TableCell>
-                          <TableCell className="text-right">{item.needed}</TableCell>
-                          <TableCell className="text-right">
-                            <span className="text-blue-600 font-semibold">{item.minLot}</span>
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
-                          <TableCell className="text-right text-green-600 font-semibold">
-                            {formatCurrency(item.needed * item.unitPrice)}
-                          </TableCell>
-                          <TableCell className="text-right text-blue-600 font-semibold">
-                            {formatCurrency(item.minLot * item.unitPrice)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={6} className="text-right">
-                          TOTAIS:
-                        </TableCell>
-                        <TableCell className="text-right text-green-600">{formatCurrency(totalNeeded)}</TableCell>
-                        <TableCell className="text-right text-blue-600">{formatCurrency(totalMinLot)}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={isPurchaseModalOpen} onOpenChange={setIsPurchaseModalOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Pedido de Compra - {selectedSupplier}</DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              Revise os itens e envie o pedido de compra para o fornecedor
-            </p>
-          </DialogHeader>
-
-          {selectedSupplierData && (
-            <div className="space-y-6">
-              {/* Buyer Data */}
-              <div className="grid gap-4 md:grid-cols-2 p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <h3 className="font-semibold mb-2">Dados do Comprador</h3>
-                  <div className="space-y-1 text-sm">
-                    <p>
-                      <span className="font-medium">Empresa:</span> Beeoz Produção Ltda
-                    </p>
-                    <p>
-                      <span className="font-medium">Endereço:</span> Rua das Indústrias, 123 - São Paulo/SP
-                    </p>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Subtotal Lote Mínimo</p>
+                    <p className="text-xl font-bold text-blue-600">{formatCurrency(supplierGroup.subtotalMinLot)}</p>
                   </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold mb-2">&nbsp;</h3>
-                  <div className="space-y-1 text-sm">
-                    <p>
-                      <span className="font-medium">CNPJ:</span> 12.345.678/0001-90
-                    </p>
-                    <p>
-                      <span className="font-medium">Contato:</span> (11) 99999-9999
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Supplier Data */}
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <h3 className="font-semibold mb-2">Dados do Fornecedor</h3>
-                <div className="grid gap-2 md:grid-cols-3 text-sm">
-                  <p>
-                    <span className="font-medium">Nome:</span> {selectedSupplier}
-                  </p>
-                  <p>
-                    <span className="font-medium">E-mail:</span> {selectedSupplierData.email}
-                  </p>
-                  <p>
-                    <span className="font-medium">Telefone:</span> {selectedSupplierData.phone}
-                  </p>
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <div>
-                <h3 className="font-semibold mb-3">Itens do Pedido</h3>
+              </CardHeader>
+              <CardContent className="pt-6">
                 <div className="border rounded-lg overflow-hidden">
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Urgência</TableHead>
                         <TableHead>Código</TableHead>
                         <TableHead>Item</TableHead>
                         <TableHead>Tipo</TableHead>
@@ -695,83 +358,85 @@ Beeoz Produção Ltda`
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {selectedSupplierData.items.map((item) => (
-                        <TableRow key={item.code}>
-                          <TableCell className="font-mono">{item.code}</TableCell>
-                          <TableCell className="font-medium">{item.name}</TableCell>
-                          <TableCell>{getTypeBadge(item.type)}</TableCell>
-                          <TableCell className="text-right">{item.needed}</TableCell>
-                          <TableCell className="text-right">
-                            <span className="text-blue-600 font-semibold">{item.minLot}</span>
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
-                          <TableCell className="text-right text-green-600 font-semibold">
-                            {formatCurrency(item.needed * item.unitPrice)}
-                          </TableCell>
-                          <TableCell className="text-right text-blue-600 font-semibold">
-                            {formatCurrency(item.minLot * item.unitPrice)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={6} className="text-right">
-                          TOTAIS:
-                        </TableCell>
-                        <TableCell className="text-right text-green-600">
-                          {formatCurrency(
-                            selectedSupplierData.items.reduce((sum, item) => sum + item.needed * item.unitPrice, 0),
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right text-blue-600">
-                          {formatCurrency(
-                            selectedSupplierData.items.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0),
-                          )}
-                        </TableCell>
-                      </TableRow>
+                      {supplierGroup.materials.map((material) => {
+                        const needed = Math.max(0, material.reorder_point - material.current_stock)
+                        const minLot = Math.max(needed, material.min_stock)
+                        const totalNeeded = needed * material.unit_cost
+                        const totalMinLot = minLot * material.unit_cost
+                        const isCritical = material.current_stock <= material.min_stock
+
+                        return (
+                          <TableRow key={material.id}>
+                            <TableCell>{isCritical && <Badge variant="destructive">Crítico</Badge>}</TableCell>
+                            <TableCell className="font-mono">{material.code}</TableCell>
+                            <TableCell className="font-medium">{material.name}</TableCell>
+                            <TableCell>{getTypeBadge(material.type)}</TableCell>
+                            <TableCell className="text-right">
+                              {needed} {material.unit}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="text-blue-600 font-semibold">
+                                {minLot} {material.unit}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">{formatCurrency(material.unit_cost)}</TableCell>
+                            <TableCell className="text-right text-green-600 font-semibold">
+                              {formatCurrency(totalNeeded)}
+                            </TableCell>
+                            <TableCell className="text-right text-blue-600 font-semibold">
+                              {formatCurrency(totalMinLot)}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 </div>
-              </div>
 
-              {/* Additional Info */}
-              <div className="grid gap-4 md:grid-cols-2 p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <span className="font-medium">Prazo de Entrega:</span> 15 dias
+                <div className="mt-4 bg-muted/30 p-4 rounded-lg">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Subtotal Necessário:</p>
+                      <p className="text-lg font-bold text-green-600">{formatCurrency(supplierGroup.subtotalNeeded)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Prazo de Entrega</p>
+                      <p className="text-lg font-bold">{supplierGroup.leadTime} dias</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Subtotal Lote Mínimo:</p>
+                      <p className="text-lg font-bold text-blue-600">{formatCurrency(supplierGroup.subtotalMinLot)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Forma de Pagamento</p>
+                      <p className="text-lg font-bold">{supplierGroup.paymentTerms} dias</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-medium">Forma de Pagamento:</span> 30 dias
-                </div>
-              </div>
+              </CardContent>
+            </Card>
+          ))}
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                  onClick={() => formatPurchaseOrderEmail(selectedSupplier)}
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  Enviar por E-mail
-                </Button>
-                <Button
-                  className="flex-1 bg-green-700 hover:bg-green-800"
-                  onClick={() => formatPurchaseOrderWhatsApp(selectedSupplier)}
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Enviar por WhatsApp
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 bg-transparent"
-                  onClick={() => alert("Funcionalidade de download PDF será implementada em breve")}
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Baixar PDF
-                </Button>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-2 text-right font-bold text-lg">
+                <div className="flex justify-end gap-4">
+                  <span>TOTAL GERAL NECESSÁRIO:</span>
+                  <span className="text-green-600 w-40">{formatCurrency(totalNeeded)}</span>
+                </div>
+                <div className="flex justify-end gap-4">
+                  <span>TOTAL GERAL LOTE MÍNIMO:</span>
+                  <span className="text-blue-600 w-40">{formatCurrency(totalMinLot)}</span>
+                </div>
+                <div className="flex justify-end gap-4">
+                  <span>DIFERENÇA:</span>
+                  <span className="text-orange-600 w-40">{formatCurrency(difference)}</span>
+                </div>
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,207 +1,292 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Plus } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Search, TrendingUp, Package, Users, FileText, ShoppingCart, MoreVertical } from "lucide-react"
+import { createBrowserClient } from "@supabase/ssr"
+
+type RawMaterial = {
+  id: number
+  code: string
+  name: string
+  type: string
+  current_stock: number
+  min_stock: number
+  reorder_point: number
+  unit: string
+  unit_cost: number
+  status: string
+}
 
 export default function MateriasPrimas() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [typeFilter, setTypeFilter] = useState("all")
+  const [materials, setMaterials] = useState<RawMaterial[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Mock data
-  const rawMaterials = [
-    {
-      id: 1,
-      code: "MP001",
-      name: "Própolis Verde",
-      type: "Própolis",
-      currentStock: 2,
-      minStock: 50,
-      unit: "kg",
-      unitCost: 150.0,
-    },
-    {
-      id: 2,
-      code: "MP002",
-      name: "Mel Silvestre",
-      type: "Mel",
-      currentStock: 15,
-      minStock: 100,
-      unit: "kg",
-      unitCost: 25.0,
-    },
-    {
-      id: 3,
-      code: "MP003",
-      name: "Cacau em Pó",
-      type: "Ingrediente",
-      currentStock: 8,
-      minStock: 30,
-      unit: "kg",
-      unitCost: 45.0,
-    },
-    {
-      id: 4,
-      code: "MP004",
-      name: "Pimenta Biquinho",
-      type: "Ingrediente",
-      currentStock: 5,
-      minStock: 20,
-      unit: "kg",
-      unitCost: 80.0,
-    },
-    {
-      id: 5,
-      code: "MP005",
-      name: "Mel de Laranjeira",
-      type: "Mel",
-      currentStock: 120,
-      minStock: 100,
-      unit: "kg",
-      unitCost: 30.0,
-    },
-  ]
-
-  const filteredMaterials = rawMaterials.filter(
-    (material) =>
-      material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      material.code.toLowerCase().includes(searchTerm.toLowerCase()),
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
 
-  const getStockStatus = (current: number, min: number) => {
-    if (current === 0) return <Badge variant="destructive">Crítico</Badge>
-    if (current <= min * 0.5) return <Badge className="bg-yellow-500 hover:bg-yellow-600">Baixo</Badge>
-    if (current <= min) return <Badge variant="secondary">Atenção</Badge>
-    return (
-      <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-        OK
-      </Badge>
-    )
+  useEffect(() => {
+    fetchMaterials()
+  }, [])
+
+  const fetchMaterials = async () => {
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from("beeoz_prod_raw_materials")
+        .select("*")
+        .eq("status", "ativo")
+        .order("name")
+
+      if (error) throw error
+      setMaterials(data || [])
+    } catch (error) {
+      console.error("[v0] Error fetching materials:", error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value)
+  const stats = {
+    total: materials.length,
+    normal: materials.filter((m) => m.current_stock > m.reorder_point).length,
+    low: materials.filter(
+      (m) => m.current_stock > 0 && m.current_stock <= m.reorder_point && m.current_stock > m.min_stock,
+    ).length,
+    critical: materials.filter((m) => m.current_stock <= m.min_stock).length,
+  }
+
+  const filteredMaterials = materials.filter((material) => {
+    const matchesSearch =
+      material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      material.code.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesType = typeFilter === "all" || material.type === typeFilter
+    return matchesSearch && matchesType
+  })
+
+  const calculateNeed = (current: number, reorderPoint: number) => {
+    const need = Math.max(0, reorderPoint - current)
+    return need
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando matérias-primas...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-balance">Matérias-Primas</h1>
-          <p className="text-muted-foreground">Gestão de matérias-primas e insumos</p>
+          <p className="text-muted-foreground">Gestão de ingredientes, embalagens e insumos para produção</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Matéria-Prima
+        <Button className="bg-primary hover:bg-primary/90">
+          <TrendingUp className="h-4 w-4 mr-2" />
+          Análise de Compras
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total de Itens</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{rawMaterials.length}</div>
+            <div className="text-3xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Crítico</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Estoque Normal</CardTitle>
+              <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center">
+                <div className="h-2 w-2 rounded-full bg-green-600"></div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {rawMaterials.filter((m) => m.currentStock === 0).length}
-            </div>
+            <div className="text-3xl font-bold">{stats.normal}</div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Baixo</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Estoque Baixo</CardTitle>
+              <div className="h-5 w-5 rounded-full bg-orange-100 flex items-center justify-center">
+                <div className="h-2 w-2 rounded-full bg-orange-600"></div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {rawMaterials.filter((m) => m.currentStock > 0 && m.currentStock <= m.minStock * 0.5).length}
-            </div>
+            <div className="text-3xl font-bold">{stats.low}</div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Estoque Crítico</CardTitle>
+              <div className="h-5 w-5 rounded-full bg-red-100 flex items-center justify-center">
+                <div className="h-2 w-2 rounded-full bg-red-600"></div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(rawMaterials.reduce((sum, m) => sum + m.currentStock * m.unitCost, 0))}
-            </div>
+            <div className="text-3xl font-bold">{stats.critical}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Materials Table */}
+      {/* Filters */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Lista de Matérias-Primas</CardTitle>
-              <CardDescription>Todas as matérias-primas cadastradas</CardDescription>
-            </div>
-            <div className="relative w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar matérias-primas..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
-            </div>
-          </div>
+          <CardTitle className="text-base">Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead className="text-right">Estoque</TableHead>
-                <TableHead className="text-right">Mínimo</TableHead>
-                <TableHead className="text-right">Custo Unit.</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredMaterials.map((material) => (
-                <TableRow key={material.id}>
-                  <TableCell className="font-mono">{material.code}</TableCell>
-                  <TableCell className="font-medium">{material.name}</TableCell>
-                  <TableCell>{material.type}</TableCell>
-                  <TableCell className="text-right">
-                    {material.currentStock} {material.unit}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {material.minStock} {material.unit}
-                  </TableCell>
-                  <TableCell className="text-right">{formatCurrency(material.unitCost)}</TableCell>
-                  <TableCell>{getStockStatus(material.currentStock, material.minStock)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
-                      Ver Detalhes
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="flex gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome ou código..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Todos os Tipos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Tipos</SelectItem>
+                <SelectItem value="Ingrediente">Ingrediente</SelectItem>
+                <SelectItem value="Embalagem">Embalagem</SelectItem>
+                <SelectItem value="Insumo">Insumo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Materials Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {filteredMaterials.map((material) => {
+          const need = calculateNeed(material.current_stock, material.reorder_point)
+
+          return (
+            <Card key={material.id} className="relative">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg">{material.name}</CardTitle>
+                    <CardDescription className="text-sm text-blue-600">{material.code}</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {material.type}
+                    </Badge>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Current Stock */}
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Estoque Atual:</p>
+                  <p className="text-3xl font-bold">
+                    {material.current_stock} {material.unit}
+                  </p>
+                </div>
+
+                {/* Stock Metrics */}
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <p className="text-muted-foreground mb-1">Estoque Mínimo</p>
+                    <p className="font-semibold">
+                      {material.min_stock} {material.unit}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Ponto de Pedido</p>
+                    <p className="font-semibold">
+                      {material.reorder_point} {material.unit}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Necessidade</p>
+                    <p className="font-semibold text-red-600">
+                      {need} {material.unit}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stock Level Indicator */}
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">{material.current_stock}</p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="default" size="sm" className="bg-[#6b8e23] hover:bg-[#5a7a1e]">
+                    <Package className="h-3 w-3 mr-1" />
+                    Ver Detalhes
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <FileText className="h-3 w-3 mr-1" />
+                    Ficha Técnica
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Users className="h-3 w-3 mr-1" />
+                    Fornecedores
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Package className="h-3 w-3 mr-1" />
+                    Lotes
+                  </Button>
+                </div>
+
+                {/* Purchase Button */}
+                <Button className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white">
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Comprar
+                </Button>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {filteredMaterials.length === 0 && (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">Nenhuma matéria-prima encontrada.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
