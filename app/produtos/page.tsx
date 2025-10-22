@@ -6,22 +6,25 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
 import { Search, ShoppingCart, Package, AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/utils/supabase/client"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 type Product = {
   id: number
-  code: string
-  name: string
-  category_id: string
-  current_stock: number
+  identificacao: string
+  descricao: string
+  unidade_medida: string
+  tipo: string
   status: string
-  category?: {
-    name: string
-    icon: string
-  }
+  valor_venda: number
+  valor_custo: number
+  qtde_minima?: number
+  qtde_seguranca?: number
+  lote_minimo_compra?: number
+  ncm?: string
+  origem?: string
+  [key: string]: any
 }
 
 export default function Produtos() {
@@ -32,22 +35,16 @@ export default function Produtos() {
 
   useEffect(() => {
     const fetchProducts = async () => {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      )
+      const supabase = createClient()
 
-      const { data, error } = await supabase
-        .from("beeoz_prod_products")
-        .select(`
-          *,
-          category:beeoz_prod_categories(name, icon)
-        `)
-        .order("code", { ascending: true })
+      console.log("[v0] Fetching products from 'produtos' table...")
+      const { data, error } = await supabase.from("produtos").select("*").order("identificacao", { ascending: true })
 
       if (error) {
-        console.error("Error fetching products:", error)
+        console.error("[v0] Error fetching products:", error)
       } else {
+        console.log("[v0] Products fetched successfully:", data)
+        console.log("[v0] First product structure:", data?.[0])
         setProducts(data || [])
       }
       setLoading(false)
@@ -57,17 +54,19 @@ export default function Produtos() {
   }, [])
 
   const getStockStatus = (product: Product) => {
-    const stock = product.current_stock || 0
-    if (stock === 0) return "critical"
-    if (stock < 50) return "low"
+    const minQty = product.qtde_minima || 50
+    const safetyQty = product.qtde_seguranca || 100
+
+    // Since we don't have current stock in this table, we'll show all as normal for now
+    // In a real scenario, you'd join with an inventory table
     return "normal"
   }
 
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.code.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = selectedCategory === "all" || product.category_id === selectedCategory
+      product.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.identificacao.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = selectedCategory === "all" || product.tipo === selectedCategory
     return matchesSearch && matchesCategory
   })
 
@@ -77,11 +76,11 @@ export default function Produtos() {
   const criticalStock = products.filter((p) => getStockStatus(p) === "critical").length
 
   const getStockPercentage = (currentStock: number) => {
-    const maxStock = 15000 // Assuming max stock for visualization
+    const maxStock = 15000
     return Math.min((currentStock / maxStock) * 100, 100)
   }
 
-  const categories = Array.from(new Set(products.map((p) => p.category_id).filter(Boolean)))
+  const categories = Array.from(new Set(products.map((p) => p.tipo).filter(Boolean)))
 
   return (
     <div className="space-y-6">
@@ -166,20 +165,19 @@ export default function Produtos() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredProducts.map((product) => {
             const stockStatus = getStockStatus(product)
-            const stockPercentage = getStockPercentage(product.current_stock || 0)
+            const currentStock = 1000 // Mock value - would need to join with inventory table
+            const stockPercentage = getStockPercentage(currentStock)
 
             return (
               <Card key={product.id} className="overflow-hidden">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-lg font-semibold leading-tight">{product.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">{product.code}</p>
+                      <CardTitle className="text-lg font-semibold leading-tight">{product.descricao}</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">{product.identificacao}</p>
                     </div>
-                    <Badge
-                      variant={stockStatus === "normal" ? "success" : stockStatus === "low" ? "warning" : "destructive"}
-                    >
-                      {stockStatus === "normal" ? "Normal" : stockStatus === "low" ? "Baixo" : "Crítico"}
+                    <Badge variant={product.status === "ativo" ? "success" : "destructive"}>
+                      {product.status === "ativo" ? "Ativo" : "Inativo"}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -194,73 +192,40 @@ export default function Produtos() {
                       </TabsTrigger>
                     </TabsList>
                     <TabsContent value="ficha" className="space-y-3 mt-4">
-                      {product.category && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span>{product.category.icon}</span>
-                          <span className="font-medium">{product.category.name}</span>
-                        </div>
-                      )}
-
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Estoque Atual:</span>
-                          <span
-                            className={`font-semibold ${
-                              stockStatus === "normal"
-                                ? "text-green-600"
-                                : stockStatus === "low"
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                            }`}
-                          >
-                            {product.current_stock || 0} un
-                          </span>
+                          <span className="text-muted-foreground">Tipo:</span>
+                          <span className="font-medium">{product.tipo}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Estoque Mínimo:</span>
-                          <span className="font-medium">50 un</span>
+                          <span className="text-muted-foreground">Unidade:</span>
+                          <span className="font-medium">{product.unidade_medida}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Ponto de Reposição:</span>
-                          <span className="font-medium">75 un</span>
+                          <span className="text-muted-foreground">Valor Venda:</span>
+                          <span className="font-semibold text-green-600">R$ {product.valor_venda.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Lote Econômico (EOQ):</span>
-                          <span className="font-medium">500 un</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">Nível de Estoque</span>
-                          <span
-                            className={
-                              stockStatus === "normal"
-                                ? "text-green-600"
-                                : stockStatus === "low"
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                            }
-                          >
-                            {stockPercentage.toFixed(0)}%
-                          </span>
-                        </div>
-                        <Progress
-                          value={stockPercentage}
-                          className="h-2"
-                          indicatorClassName={
-                            stockStatus === "normal"
-                              ? "bg-green-600"
-                              : stockStatus === "low"
-                                ? "bg-yellow-600"
-                                : "bg-red-600"
-                          }
-                        />
+                        {product.qtde_minima > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Qtd. Mínima:</span>
+                            <span className="font-medium">
+                              {product.qtde_minima} {product.unidade_medida}
+                            </span>
+                          </div>
+                        )}
+                        {product.lote_minimo_compra > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Lote Mínimo:</span>
+                            <span className="font-medium">
+                              {product.lote_minimo_compra} {product.unidade_medida}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex justify-between text-xs text-muted-foreground pt-2 border-t">
-                        <span>Validade: 730 dias</span>
-                        <span>Lote Setup: 100 un</span>
+                        <span>NCM: {product.ncm || "N/A"}</span>
+                        <span>Origem: {product.origem || "N/A"}</span>
                       </div>
                     </TabsContent>
                     <TabsContent value="lotes" className="mt-4">
