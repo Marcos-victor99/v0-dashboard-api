@@ -43,6 +43,7 @@ interface Supplier {
   endereco_cidade: string
   endereco_estado: string
   endereco_cep: string
+  extra_tags: string | string[] | null
 }
 
 export default function Fornecedores() {
@@ -93,6 +94,18 @@ export default function Fornecedores() {
         }
 
         console.log(`[v0] Total suppliers fetched: ${allSuppliers.length}`)
+
+        const suppliersWithTags = allSuppliers.filter((s) => s.extra_tags)
+        console.log(`[v0] Suppliers with extra_tags: ${suppliersWithTags.length}`)
+        if (suppliersWithTags.length > 0) {
+          console.log(`[v0] Sample supplier with tags:`, {
+            id: suppliersWithTags[0].id,
+            name: suppliersWithTags[0].razao_social,
+            extra_tags: suppliersWithTags[0].extra_tags,
+            tags_type: typeof suppliersWithTags[0].extra_tags,
+          })
+        }
+
         setSuppliers(allSuppliers)
       } catch (error) {
         console.error("[v0] Error in fetchSuppliers:", error)
@@ -420,92 +433,120 @@ export default function Fornecedores() {
           <div className="text-center text-muted-foreground">Carregando fornecedores...</div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {filteredSuppliers.map((supplier) => (
-              <Card key={supplier.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{supplier.tipo === "J" ? "Jurídica" : "Física"}</Badge>
-                      <h3 className="font-semibold">{supplier.nome_fantasia || supplier.razao_social}</h3>
-                    </div>
-                    <Button size="sm">Detalhes</Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {supplier.identificacao} • {supplier.documento}
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* Contact Information */}
-                  <div className="space-y-2 text-sm">
-                    {supplier.nome_fantasia && supplier.razao_social !== supplier.nome_fantasia && (
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs">{supplier.razao_social}</span>
-                      </div>
-                    )}
-                    {supplier.comunicacao_telefone1 && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{supplier.comunicacao_telefone1}</span>
-                      </div>
-                    )}
-                    {supplier.comunicacao_email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span className="truncate">{supplier.comunicacao_email}</span>
-                      </div>
-                    )}
-                    {(supplier.endereco_logradouro || supplier.endereco_cidade) && (
-                      <div className="flex items-start gap-2">
-                        <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                        <span className="text-xs leading-relaxed">
-                          {[
-                            supplier.endereco_logradouro,
-                            supplier.endereco_numero,
-                            supplier.endereco_bairro,
-                            supplier.endereco_cidade,
-                            supplier.endereco_estado,
-                            supplier.endereco_cep,
-                          ]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+            {filteredSuppliers.map((supplier) => {
+              const tags = (() => {
+                if (!supplier.extra_tags) return []
+                if (Array.isArray(supplier.extra_tags)) return supplier.extra_tags
+                if (typeof supplier.extra_tags === "string") {
+                  try {
+                    const parsed = JSON.parse(supplier.extra_tags)
+                    if (Array.isArray(parsed)) return parsed
+                  } catch {
+                    return supplier.extra_tags
+                      .split(",")
+                      .map((tag) => tag.trim())
+                      .filter(Boolean)
+                  }
+                }
+                return []
+              })()
 
-                  {/* Action Buttons */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline">
-                      <ShoppingCart className="mr-2 h-4 w-4" />
-                      Pedido
-                    </Button>
-                    <Button variant="outline">
-                      <Package className="mr-2 h-4 w-4" />
-                      Cotações
-                    </Button>
-                    {supplier.comunicacao_telefone1 && (
-                      <>
-                        <Button variant="outline">
-                          <MessageSquare className="mr-2 h-4 w-4" />
-                          WhatsApp
-                        </Button>
-                        <Button variant="outline">
-                          <PhoneCall className="mr-2 h-4 w-4" />
-                          Ligar
-                        </Button>
-                      </>
+              return (
+                <Card key={supplier.id}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{supplier.tipo === "J" ? "Jurídica" : "Física"}</Badge>
+                        <h3 className="font-semibold">{supplier.nome_fantasia || supplier.razao_social}</h3>
+                      </div>
+                      <Button size="sm">Detalhes</Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {supplier.identificacao} • {supplier.documento}
+                    </p>
+                    {tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-2">
+                        {tags.map((tag, index) => (
+                          <Badge key={index} variant="outline" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
-                  </div>
-                  {supplier.comunicacao_email && (
-                    <Button variant="default" className="w-full">
-                      <Mail className="mr-2 h-4 w-4" />
-                      Email
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {/* Contact Information */}
+                    <div className="space-y-2 text-sm">
+                      {supplier.nome_fantasia && supplier.razao_social !== supplier.nome_fantasia && (
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-xs">{supplier.razao_social}</span>
+                        </div>
+                      )}
+                      {supplier.comunicacao_telefone1 && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          <span>{supplier.comunicacao_telefone1}</span>
+                        </div>
+                      )}
+                      {supplier.comunicacao_email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <span className="truncate">{supplier.comunicacao_email}</span>
+                        </div>
+                      )}
+                      {(supplier.endereco_logradouro || supplier.endereco_cidade) && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                          <span className="text-xs leading-relaxed">
+                            {[
+                              supplier.endereco_logradouro,
+                              supplier.endereco_numero,
+                              supplier.endereco_bairro,
+                              supplier.endereco_cidade,
+                              supplier.endereco_estado,
+                              supplier.endereco_cep,
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="outline">
+                        <ShoppingCart className="mr-2 h-4 w-4" />
+                        Pedido
+                      </Button>
+                      <Button variant="outline">
+                        <Package className="mr-2 h-4 w-4" />
+                        Cotações
+                      </Button>
+                      {supplier.comunicacao_telefone1 && (
+                        <>
+                          <Button variant="outline">
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            WhatsApp
+                          </Button>
+                          <Button variant="outline">
+                            <PhoneCall className="mr-2 h-4 w-4" />
+                            Ligar
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    {supplier.comunicacao_email && (
+                      <Button variant="default" className="w-full">
+                        <Mail className="mr-2 h-4 w-4" />
+                        Email
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
 
