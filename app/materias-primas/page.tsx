@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Search,
   Package,
@@ -33,6 +35,19 @@ interface RawMaterial {
   unit: string
   unit_cost: number
   status: string
+  lotes_count?: number
+}
+
+interface Lote {
+  id: number
+  identificacao: string
+  produto_id: number
+  saldo: number
+  qtde: number
+  data_criacao: string
+  data_validade: string | null
+  deposito_id: number | null
+  localizacao: string | null
 }
 
 export default function MateriasPrimas() {
@@ -42,6 +57,10 @@ export default function MateriasPrimas() {
   const [materials, setMaterials] = useState<RawMaterial[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set())
+  const [selectedMaterial, setSelectedMaterial] = useState<RawMaterial | null>(null)
+  const [lotes, setLotes] = useState<Lote[]>([])
+  const [lotesDialogOpen, setLotesDialogOpen] = useState(false)
+  const [loadingLotes, setLoadingLotes] = useState(false)
 
   const supabase = createBrowserClient(
     "https://vdhxtlnadjejyyydmlit.supabase.co",
@@ -52,39 +71,126 @@ export default function MateriasPrimas() {
     fetchMaterials()
   }, [statusFilter])
 
+  async function fetchLotesForProduct(productId: number) {
+    setLoadingLotes(true)
+    try {
+      const { data, error } = await supabase
+        .from("lotes")
+        .select("*")
+        .eq("produto_id", productId)
+        .order("data_criacao", { ascending: true })
+
+      if (error) {
+        console.error("[v0] Error fetching lotes:", error)
+        return []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error("[v0] Error fetching lotes:", error)
+      return []
+    } finally {
+      setLoadingLotes(false)
+    }
+  }
+
+  async function handleLotesClick(material: RawMaterial) {
+    setSelectedMaterial(material)
+    setLotesDialogOpen(true)
+    const lotesData = await fetchLotesForProduct(material.id)
+    setLotes(lotesData)
+  }
+
   async function fetchMaterials() {
     try {
       console.log("[v0] Fetching raw materials from produtos table...")
 
-      let query = supabase.from("produtos").select("*").eq("tipo", "01 - Matéria Prima")
+      const allProducts = []
+      let start = 0
+      const batchSize = 1000
 
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter)
+      while (true) {
+        let query = supabase
+          .from("produtos")
+          .select("*")
+          .eq("tipo", "01 - Matéria Prima")
+          .range(start, start + batchSize - 1)
+          .order("descricao")
+
+        if (statusFilter !== "all") {
+          query = query.eq("status", statusFilter)
+        }
+
+        const { data, error } = await query
+
+        if (error) {
+          console.error("[v0] Error fetching materials:", error)
+          throw error
+        }
+
+        if (!data || data.length === 0) break
+
+        allProducts.push(...data)
+        console.log(`[v0] Fetched products batch: ${data.length} (total: ${allProducts.length})`)
+
+        if (data.length < batchSize) break
+        start += batchSize
       }
 
-      const { data, error } = await query.order("descricao")
+      console.log(`[v0] Total products fetched: ${allProducts.length}`)
 
-      if (error) {
-        console.error("[v0] Error fetching materials:", error)
-        throw error
+      const allLotes = []
+      let lotesStart = 0
+      const lotesBatchSize = 1000
+
+      while (true) {
+        const { data: lotesBatch, error: lotesError } = await supabase
+          .from("lotes")
+          .select("*")
+          .gt("saldo", 0)
+          .range(lotesStart, lotesStart + lotesBatchSize - 1)
+          .order("data_criacao", { ascending: true })
+
+        if (lotesError) {
+          console.error("[v0] Error fetching lotes:", lotesError)
+          break
+        }
+
+        if (!lotesBatch || lotesBatch.length === 0) break
+
+        allLotes.push(...lotesBatch)
+        console.log(`[v0] Fetched lotes batch: ${lotesBatch.length} (total: ${allLotes.length})`)
+
+        if (lotesBatch.length < lotesBatchSize) break
+        lotesStart += lotesBatchSize
       }
 
-      console.log("[v0] Raw materials fetched:", data?.length, "items")
+      console.log(`[v0] Total lotes fetched: ${allLotes.length}`)
 
-      const mappedMaterials: RawMaterial[] = (data || []).map((item: any) => ({
-        id: item.id,
-        code: item.identificacao || "",
-        name: item.descricao || "",
-        type: item.tipo || "",
-        current_stock: item.estoque_atual || 0,
-        min_stock: item.quantidade_minima || 0,
-        reorder_point: item.ponto_reposicao || item.quantidade_minima || 0,
-        unit: item.unidade_medida || "UN",
-        unit_cost: item.valor_custo || 0,
-        status: item.status || "ativo",
-      }))
+      const materialsWithStock = allProducts.map((item: any) => {
+        const productLotes = allLotes.filter((lote: any) => lote.produto_id === item.id)
+        const estoqueAtual = productLotes.reduce((sum: number, lote: any) => sum + (lote.saldo || 0), 0)
 
-      setMaterials(mappedMaterials)
+        return {
+          id: item.id,
+          code: item.identificacao || "",
+          name: item.descricao || "",
+          type: item.tipo || "",
+          current_stock: estoqueAtual,
+          min_stock: item.quantidade_minima || 0,
+          reorder_point: item.ponto_reposicao || item.quantidade_minima || 0,
+          unit: item.unidade_medida || "UN",
+          unit_cost: item.valor_custo || 0,
+          status: item.status || "ativo",
+          lotes_count: productLotes.length,
+        }
+      })
+
+      console.log(`[v0] Materials with stock calculated: ${materialsWithStock.length}`)
+      console.log(`[v0] Materials with lotes: ${materialsWithStock.filter((m) => m.lotes_count > 0).length}`)
+      console.log(`[v0] Materials without lotes: ${materialsWithStock.filter((m) => m.lotes_count === 0).length}`)
+
+      setMaterials(materialsWithStock)
     } catch (error) {
       console.error("[v0] Error fetching materials:", error)
     } finally {
@@ -136,6 +242,11 @@ export default function MateriasPrimas() {
   const calculateNecessity = (current: number, reorderPoint: number) => {
     const need = Math.max(0, reorderPoint - current)
     return need
+  }
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "-"
+    return new Date(dateString).toLocaleDateString("pt-BR")
   }
 
   if (loading) {
@@ -294,6 +405,11 @@ export default function MateriasPrimas() {
                   <p className="text-4xl font-bold">
                     {material.current_stock} {material.unit}
                   </p>
+                  {material.lotes_count !== undefined && material.lotes_count > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {material.lotes_count} {material.lotes_count === 1 ? "lote" : "lotes"}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-center text-sm">
@@ -332,7 +448,7 @@ export default function MateriasPrimas() {
                     <Users className="h-4 w-4 mr-2" />
                     Fornecedores
                   </Button>
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={() => handleLotesClick(material)}>
                     <Package className="h-4 w-4 mr-2" />
                     Lotes
                   </Button>
@@ -355,6 +471,63 @@ export default function MateriasPrimas() {
           <p className="text-muted-foreground">Tente ajustar os filtros ou termos de busca.</p>
         </div>
       )}
+
+      <Dialog open={lotesDialogOpen} onOpenChange={setLotesDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Histórico de Lotes</DialogTitle>
+            <DialogDescription>
+              {selectedMaterial && (
+                <>
+                  {selectedMaterial.name} ({selectedMaterial.code})
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingLotes ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : lotes.length === 0 ? (
+            <div className="text-center py-8">
+              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">Nenhum lote encontrado para este produto.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Identificação</TableHead>
+                  <TableHead className="text-right">Quantidade</TableHead>
+                  <TableHead className="text-right">Saldo</TableHead>
+                  <TableHead>Data Criação</TableHead>
+                  <TableHead>Validade</TableHead>
+                  <TableHead>Localização</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lotes.map((lote) => (
+                  <TableRow key={lote.id}>
+                    <TableCell className="font-medium">{lote.identificacao}</TableCell>
+                    <TableCell className="text-right">
+                      {lote.qtde} {selectedMaterial?.unit}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant={lote.saldo > 0 ? "success" : "secondary"}>
+                        {lote.saldo} {selectedMaterial?.unit}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatDate(lote.data_criacao)}</TableCell>
+                    <TableCell>{formatDate(lote.data_validade)}</TableCell>
+                    <TableCell>{lote.localizacao || "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
