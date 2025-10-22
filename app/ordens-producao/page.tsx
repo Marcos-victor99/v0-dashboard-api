@@ -1,71 +1,84 @@
 "use client"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Clock, Play, CheckCircle2, XCircle } from "lucide-react"
+import { Plus, Package, Clock, Factory, CheckCircle2, Calendar, Box } from "lucide-react"
+import { createBrowserClient } from "@supabase/ssr"
+
+interface ProductionOrder {
+  id: number
+  order_number: string
+  product_id: number
+  quantity: number
+  status: string
+  priority: string
+  notes: string | null
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+  product?: {
+    name: string
+    code: string
+  }
+}
 
 export default function OrdensProducao() {
-  // Mock data
-  const orders = [
-    {
-      id: 1,
-      number: "OP-0001",
-      product: "Propolift Extrato Alcoólico Verde",
-      plannedQty: 100,
-      producedQty: 0,
-      startDate: "2025-01-20",
-      endDate: "2025-01-25",
-      status: "planned",
-    },
-    {
-      id: 2,
-      number: "OP-0002",
-      product: "Honey Fusion Morango",
-      plannedQty: 200,
-      producedQty: 150,
-      startDate: "2025-01-18",
-      endDate: "2025-01-22",
-      status: "in_progress",
-    },
-    {
-      id: 3,
-      number: "OP-0003",
-      product: "Mel Biomas Cerrado",
-      plannedQty: 150,
-      producedQty: 150,
-      startDate: "2025-01-15",
-      endDate: "2025-01-19",
-      status: "completed",
-    },
-  ]
+  const [orders, setOrders] = useState<ProductionOrder[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { label: string; variant: any; icon: any }> = {
-      planned: { label: "Planejada", variant: "secondary", icon: Clock },
-      released: { label: "Liberada", variant: "default", icon: Play },
-      in_progress: { label: "Em Andamento", variant: "default", icon: Play },
-      completed: { label: "Concluída", variant: "default", icon: CheckCircle2 },
-      cancelled: { label: "Cancelada", variant: "destructive", icon: XCircle },
+  useEffect(() => {
+    const fetchOrders = async () => {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
+
+      const { data, error } = await supabase
+        .from("beeoz_prod_production_orders")
+        .select(
+          `
+          *,
+          product:beeoz_prod_products(name, code)
+        `,
+        )
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching production orders:", error)
+      } else {
+        setOrders(data || [])
+      }
+      setLoading(false)
     }
 
-    const config = statusConfig[status] || statusConfig.planned
-    const Icon = config.icon
+    fetchOrders()
+  }, [])
 
-    return (
-      <Badge variant={config.variant} className="flex items-center gap-1 w-fit">
-        <Icon className="h-3 w-3" />
-        {config.label}
-      </Badge>
-    )
+  const totalOrders = orders.length
+  const pendingOrders = orders.filter((o) => o.status === "pending").length
+  const inProgressOrders = orders.filter((o) => o.status === "in_progress").length
+  const completedOrders = orders.filter((o) => o.status === "completed").length
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig: Record<string, { label: string; variant: "warning" | "default" | "success" }> = {
+      pending: { label: "Pendente", variant: "warning" },
+      in_progress: { label: "Em Produção", variant: "default" },
+      completed: { label: "Concluída", variant: "success" },
+    }
+
+    const config = statusConfig[status] || statusConfig.pending
+
+    return <Badge variant={config.variant}>{config.label}</Badge>
+  }
+
+  const getPriorityBadge = (priority: string) => {
+    return <Badge variant="secondary">{priority === "high" ? "Alta" : priority === "low" ? "Baixa" : "Normal"}</Badge>
   }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("pt-BR")
-  }
-
-  const getProgress = (produced: number, planned: number) => {
-    return Math.round((produced / planned) * 100)
   }
 
   return (
@@ -73,107 +86,121 @@ export default function OrdensProducao() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-balance">Ordens de Produção</h1>
-          <p className="text-muted-foreground">Gestão de ordens de produção</p>
+          <p className="text-muted-foreground">Gestão e acompanhamento de ordens de produção</p>
         </div>
-        <Button>
+        <Button className="bg-green-600 hover:bg-green-700 text-white">
           <Plus className="h-4 w-4 mr-2" />
           Nova Ordem
         </Button>
       </div>
 
-      {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total de Ordens</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{orders.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Planejadas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{orders.filter((o) => o.status === "planned").length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Em Andamento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {orders.filter((o) => o.status === "in_progress").length}
+            <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
+              <Package className="h-4 w-4 text-gray-600" />
             </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalOrders}</div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
+            <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">
+              <Clock className="h-4 w-4 text-orange-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingOrders}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Em Produção</CardTitle>
+            <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+              <Factory className="h-4 w-4 text-blue-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{inProgressOrders}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Concluídas</CardTitle>
+            <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {orders.filter((o) => o.status === "completed").length}
-            </div>
+            <div className="text-2xl font-bold">{completedOrders}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Orders Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Ordens de Produção</CardTitle>
-          <CardDescription>Todas as ordens de produção cadastradas</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Número</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead className="text-center">Quantidade</TableHead>
-                <TableHead className="text-center">Progresso</TableHead>
-                <TableHead>Início</TableHead>
-                <TableHead>Fim</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orders.map((order) => {
-                const progress = getProgress(order.producedQty, order.plannedQty)
-                return (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-mono">{order.number}</TableCell>
-                    <TableCell className="font-medium">{order.product}</TableCell>
-                    <TableCell className="text-center">
-                      {order.producedQty} / {order.plannedQty}
-                    </TableCell>
-                    <TableCell className="text-center">
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">Ordens de Produção</h2>
+          <p className="text-sm text-muted-foreground">Lista de todas as ordens de produção</p>
+        </div>
+
+        {loading ? (
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">Carregando ordens...</p>
+            </CardContent>
+          </Card>
+        ) : orders.length === 0 ? (
+          <Card>
+            <CardContent className="py-8">
+              <p className="text-center text-muted-foreground">Nenhuma ordem de produção encontrada.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {orders.map((order) => (
+              <Card key={order.id} className="border-l-4 border-l-green-500">
+                <CardContent className="py-4">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                          <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
-                        </div>
-                        <span className="text-sm font-medium w-12">{progress}%</span>
+                        <h3 className="font-semibold">Ordem #{order.order_number}</h3>
+                        {getStatusBadge(order.status)}
+                        {getPriorityBadge(order.priority)}
                       </div>
-                    </TableCell>
-                    <TableCell>{formatDate(order.startDate)}</TableCell>
-                    <TableCell>{formatDate(order.endDate)}</TableCell>
-                    <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        Ver Detalhes
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+
+                      <div className="space-y-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Box className="h-4 w-4" />
+                          <span>
+                            Produto: {order.product?.name || "N/A"} ({order.product?.code || "N/A"})
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4" />
+                          <span>Quantidade: {order.quantity} unidades</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          <span>Criada em: {formatDate(order.created_at)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
