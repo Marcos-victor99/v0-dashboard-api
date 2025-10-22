@@ -31,32 +31,61 @@ interface RawMaterial {
   reorder_point: number
   unit: string
   unit_cost: number
+  status: string
 }
 
 export default function MateriasPrimas() {
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState<"ativo" | "inativo" | "all">("ativo")
   const [materials, setMaterials] = useState<RawMaterial[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set())
 
   const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    "https://vdhxtlnadjejyyydmlit.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkaHh0bG5hZGplanl5eWRtbGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExODAzMDEsImV4cCI6MjA1Njc1NjMwMX0.TWzazmeto1Ic5cNAf7LrDjHcrbuaofCid_3xNiBnVkE",
   )
 
   useEffect(() => {
     fetchMaterials()
-  }, [])
+  }, [statusFilter])
 
   async function fetchMaterials() {
     try {
-      const { data, error } = await supabase.from("beeoz_prod_raw_materials").select("*").order("name")
+      console.log("[v0] Fetching raw materials from produtos table...")
 
-      if (error) throw error
-      setMaterials(data || [])
+      let query = supabase.from("produtos").select("*").eq("tipo", "01 - Matéria Prima")
+
+      if (statusFilter !== "all") {
+        query = query.eq("status", statusFilter)
+      }
+
+      const { data, error } = await query.order("descricao")
+
+      if (error) {
+        console.error("[v0] Error fetching materials:", error)
+        throw error
+      }
+
+      console.log("[v0] Raw materials fetched:", data?.length, "items")
+
+      const mappedMaterials: RawMaterial[] = (data || []).map((item: any) => ({
+        id: item.id,
+        code: item.identificacao || "",
+        name: item.descricao || "",
+        type: item.tipo || "",
+        current_stock: item.estoque_atual || 0,
+        min_stock: item.quantidade_minima || 0,
+        reorder_point: item.ponto_reposicao || item.quantidade_minima || 0,
+        unit: item.unidade_medida || "UN",
+        unit_cost: item.valor_custo || 0,
+        status: item.status || "ativo",
+      }))
+
+      setMaterials(mappedMaterials)
     } catch (error) {
-      console.error("Error fetching materials:", error)
+      console.error("[v0] Error fetching materials:", error)
     } finally {
       setLoading(false)
     }
@@ -193,6 +222,29 @@ export default function MateriasPrimas() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={statusFilter === "ativo" ? "default" : "outline"}
+              onClick={() => setStatusFilter("ativo")}
+              size="sm"
+            >
+              Ativo
+            </Button>
+            <Button
+              variant={statusFilter === "inativo" ? "default" : "outline"}
+              onClick={() => setStatusFilter("inativo")}
+              size="sm"
+            >
+              Inativo
+            </Button>
+            <Button
+              variant={statusFilter === "all" ? "default" : "outline"}
+              onClick={() => setStatusFilter("all")}
+              size="sm"
+            >
+              Todos
+            </Button>
           </div>
           <Select value={typeFilter} onValueChange={setTypeFilter}>
             <SelectTrigger className="w-[200px]">
