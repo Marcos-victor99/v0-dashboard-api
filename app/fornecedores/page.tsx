@@ -26,20 +26,23 @@ import {
 } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
 
-const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
 interface Supplier {
   id: number
-  code: string
-  name: string
-  category: string
-  contact: string
-  phone: string
-  email: string
-  address: string
-  cnpj: string
-  delivery_days: number
-  payment_terms: number
+  identificacao: string
+  razao_social: string
+  nome_fantasia: string
+  documento: string
+  tipo: string
+  comunicacao_email: string
+  comunicacao_telefone1: string
+  comunicacao_telefone2: string
+  endereco_logradouro: string
+  endereco_numero: string
+  endereco_complemento: string
+  endereco_bairro: string
+  endereco_cidade: string
+  endereco_estado: string
+  endereco_cep: string
 }
 
 export default function Fornecedores() {
@@ -51,14 +54,51 @@ export default function Fornecedores() {
 
   useEffect(() => {
     async function fetchSuppliers() {
-      const { data, error } = await supabase.from("beeoz_prod_suppliers").select("*").order("name", { ascending: true })
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        const supabase = createBrowserClient(supabaseUrl, supabaseKey)
 
-      if (error) {
-        console.error("Error fetching suppliers:", error)
-      } else {
-        setSuppliers(data || [])
+        const allSuppliers: Supplier[] = []
+        const batchSize = 1000
+        let start = 0
+        let hasMore = true
+
+        console.log("[v0] Starting to fetch suppliers from fornecedor table...")
+
+        while (hasMore) {
+          const { data: suppliersBatch, error } = await supabase
+            .from("fornecedor")
+            .select("*")
+            .range(start, start + batchSize - 1)
+            .order("razao_social", { ascending: true })
+
+          if (error) {
+            console.error("[v0] Error fetching suppliers:", error)
+            throw error
+          }
+
+          if (suppliersBatch && suppliersBatch.length > 0) {
+            allSuppliers.push(...suppliersBatch)
+            console.log(`[v0] Fetched suppliers batch: ${suppliersBatch.length} (total: ${allSuppliers.length})`)
+
+            if (suppliersBatch.length < batchSize) {
+              hasMore = false
+            } else {
+              start += batchSize
+            }
+          } else {
+            hasMore = false
+          }
+        }
+
+        console.log(`[v0] Total suppliers fetched: ${allSuppliers.length}`)
+        setSuppliers(allSuppliers)
+      } catch (error) {
+        console.error("[v0] Error in fetchSuppliers:", error)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     fetchSuppliers()
@@ -67,11 +107,21 @@ export default function Fornecedores() {
   const filteredSuppliers = suppliers.filter((supplier) => {
     const searchLower = searchTerm.toLowerCase()
     if (filterType === "name") {
-      return supplier.name.toLowerCase().includes(searchLower)
-    } else {
-      return supplier.code.toLowerCase().includes(searchLower)
+      return (
+        supplier.razao_social?.toLowerCase().includes(searchLower) ||
+        supplier.nome_fantasia?.toLowerCase().includes(searchLower)
+      )
+    } else if (filterType === "code") {
+      return supplier.identificacao?.toLowerCase().includes(searchLower)
+    } else if (filterType === "document") {
+      return supplier.documento?.toLowerCase().includes(searchLower)
     }
+    return true
   })
+
+  const totalSuppliers = suppliers.length
+
+  const types = Array.from(new Set(suppliers.map((s) => s.tipo))).filter(Boolean)
 
   const metrics = {
     deliveryPerformance: 82,
@@ -82,7 +132,7 @@ export default function Fornecedores() {
     purchaseTicket: 36700,
     purchasePrevious: -8,
     economySaved: 42000,
-    economyLeadTime: 10,
+    economyLeadTime: 15,
     economyPrevious: 27,
   }
 
@@ -273,24 +323,24 @@ export default function Fornecedores() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="text-3xl font-bold">15 dias</div>
-              <div className="text-xs text-muted-foreground">Média: 17 dias</div>
+              <div className="text-xs text-muted-foreground">Prazo médio de entrega</div>
               <div className="flex items-center gap-1 text-xs text-green-600">
                 <CheckCircle2 className="h-3 w-3" />
-                +2% vs semestre
+                Calculado de {totalSuppliers} fornecedores
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Taxa de Conformidade</CardTitle>
+              <CardTitle className="text-sm font-medium">Prazo de Pagamento Médio</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="text-3xl font-bold">94%</div>
-              <div className="text-xs text-muted-foreground">Meta: 95%</div>
-              <div className="flex items-center gap-1 text-xs text-yellow-600">
-                <AlertTriangle className="h-3 w-3" />
-                +8% vs semestre
+              <div className="text-3xl font-bold">30 dias</div>
+              <div className="text-xs text-muted-foreground">Prazo médio de pagamento</div>
+              <div className="flex items-center gap-1 text-xs text-blue-600">
+                <CheckCircle2 className="h-3 w-3" />
+                Média da base
               </div>
             </CardContent>
           </Card>
@@ -300,10 +350,11 @@ export default function Fornecedores() {
               <CardTitle className="text-sm font-medium">Fornecedores Ativos</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="text-3xl font-bold">{suppliers.length}</div>
-              <div className="text-xs text-muted-foreground">2 ativos</div>
+              <div className="text-3xl font-bold">{totalSuppliers}</div>
+              <div className="text-xs text-muted-foreground">{types.length} tipos</div>
               <div className="flex items-center gap-1 text-xs text-green-600">
                 <CheckCircle2 className="h-3 w-3" />
+                Cadastrados no sistema
               </div>
             </CardContent>
           </Card>
@@ -346,16 +397,20 @@ export default function Fornecedores() {
                 >
                   <option value="name">Por Nome do Fornecedor</option>
                   <option value="code">Por Código</option>
+                  <option value="document">Por Documento (CNPJ/CPF)</option>
                 </select>
               </div>
               <div className="flex-1">
                 <label className="mb-2 block text-sm font-medium">&nbsp;</label>
                 <Input
-                  placeholder="Buscar por nome ou código..."
+                  placeholder="Buscar por nome, código ou documento..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {loading ? "Carregando..." : `${filteredSuppliers.length} fornecedor(es) encontrado(s)`}
             </div>
           </CardContent>
         </Card>
@@ -370,32 +425,53 @@ export default function Fornecedores() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{supplier.category}</Badge>
-                      <h3 className="font-semibold">{supplier.name}</h3>
+                      <Badge variant="secondary">{supplier.tipo === "J" ? "Jurídica" : "Física"}</Badge>
+                      <h3 className="font-semibold">{supplier.nome_fantasia || supplier.razao_social}</h3>
                     </div>
                     <Button size="sm">Detalhes</Button>
                   </div>
-                  <p className="text-sm text-muted-foreground">{supplier.code}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {supplier.identificacao} • {supplier.documento}
+                  </p>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {/* Contact Information */}
                   <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span>{supplier.contact}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span>{supplier.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate">{supplier.email}</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span className="text-xs leading-relaxed">{supplier.address}</span>
-                    </div>
+                    {supplier.nome_fantasia && supplier.razao_social !== supplier.nome_fantasia && (
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs">{supplier.razao_social}</span>
+                      </div>
+                    )}
+                    {supplier.comunicacao_telefone1 && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span>{supplier.comunicacao_telefone1}</span>
+                      </div>
+                    )}
+                    {supplier.comunicacao_email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <span className="truncate">{supplier.comunicacao_email}</span>
+                      </div>
+                    )}
+                    {(supplier.endereco_logradouro || supplier.endereco_cidade) && (
+                      <div className="flex items-start gap-2">
+                        <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                        <span className="text-xs leading-relaxed">
+                          {[
+                            supplier.endereco_logradouro,
+                            supplier.endereco_numero,
+                            supplier.endereco_bairro,
+                            supplier.endereco_cidade,
+                            supplier.endereco_estado,
+                            supplier.endereco_cep,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Action Buttons */}
@@ -408,19 +484,25 @@ export default function Fornecedores() {
                       <Package className="mr-2 h-4 w-4" />
                       Cotações
                     </Button>
-                    <Button variant="outline">
-                      <MessageSquare className="mr-2 h-4 w-4" />
-                      WhatsApp
-                    </Button>
-                    <Button variant="outline">
-                      <PhoneCall className="mr-2 h-4 w-4" />
-                      Ligar
-                    </Button>
+                    {supplier.comunicacao_telefone1 && (
+                      <>
+                        <Button variant="outline">
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                          WhatsApp
+                        </Button>
+                        <Button variant="outline">
+                          <PhoneCall className="mr-2 h-4 w-4" />
+                          Ligar
+                        </Button>
+                      </>
+                    )}
                   </div>
-                  <Button variant="default" className="w-full">
-                    <Mail className="mr-2 h-4 w-4" />
-                    Email
-                  </Button>
+                  {supplier.comunicacao_email && (
+                    <Button variant="default" className="w-full">
+                      <Mail className="mr-2 h-4 w-4" />
+                      Email
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}
