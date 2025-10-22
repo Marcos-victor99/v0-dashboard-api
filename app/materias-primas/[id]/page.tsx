@@ -20,6 +20,15 @@ import {
   PackageOpen,
 } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 export default function MateriaPrimaDetalhes() {
   const params = useParams()
@@ -27,7 +36,9 @@ export default function MateriaPrimaDetalhes() {
   const id = params?.id ? Number.parseInt(params.id as string) : 0
 
   const [rawMaterial, setRawMaterial] = useState<any>(null)
+  const [lotes, setLotes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [lotesDialogOpen, setLotesDialogOpen] = useState(false)
 
   const supabase = createBrowserClient(
     "https://vdhxtlnadjejyyydmlit.supabase.co",
@@ -42,14 +53,26 @@ export default function MateriaPrimaDetalhes() {
     try {
       console.log("[v0] Fetching material details for ID:", id)
 
-      const { data, error } = await supabase.from("produtos").select("*").eq("id", id).single()
+      const [productResult, lotesResult] = await Promise.all([
+        supabase.from("produtos").select("*").eq("id", id).single(),
+        supabase.from("lotes").select("*").eq("produto_id", id).order("data_criacao", { ascending: false }),
+      ])
 
-      if (error) {
-        console.error("[v0] Error fetching material:", error)
-        throw error
+      if (productResult.error) {
+        console.error("[v0] Error fetching material:", productResult.error)
+        throw productResult.error
       }
 
+      const data = productResult.data
       console.log("[v0] Material data:", data)
+
+      const lotesData = lotesResult.data || []
+      console.log("[v0] Lotes data:", lotesData)
+
+      const currentStock = lotesData.reduce((sum, lote) => sum + (lote.saldo || 0), 0)
+      console.log("[v0] Current stock from lotes:", currentStock)
+
+      setLotes(lotesData)
 
       let grupoData = null
       if (data.grupo) {
@@ -65,7 +88,7 @@ export default function MateriaPrimaDetalhes() {
         code: data.identificacao || "",
         name: data.descricao || "",
         type: data.tipo || "",
-        currentStock: data.estoque_atual || 0,
+        currentStock: currentStock, // Use calculated stock from lotes
         minStock: data.quantidade_minima || 0,
         reorderPoint: data.ponto_reposicao || data.quantidade_minima || 0,
         unit: data.unidade_medida || "UN",
@@ -153,14 +176,71 @@ export default function MateriaPrimaDetalhes() {
             <Users className="h-4 w-4 mr-2" />
             Fornecedores ({suppliersCount})
           </Button>
-          <Button variant="outline">
-            <Package className="h-4 w-4 mr-2" />
-            Lotes
-          </Button>
-          <Button variant="default" className="bg-green-600 hover:bg-green-700">
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Comprar
-          </Button>
+          <Dialog open={lotesDialogOpen} onOpenChange={setLotesDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Package className="h-4 w-4 mr-2" />
+                Lotes ({lotes.length})
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Lotes de Estoque - {rawMaterial.name}</DialogTitle>
+                <DialogDescription>Visualize todos os lotes disponíveis para este material</DialogDescription>
+              </DialogHeader>
+              <div className="mt-4">
+                {lotes.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhum lote cadastrado para este material</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Identificação</TableHead>
+                        <TableHead>Quantidade</TableHead>
+                        <TableHead>Saldo</TableHead>
+                        <TableHead>Validade</TableHead>
+                        <TableHead>Localização</TableHead>
+                        <TableHead>Depósito</TableHead>
+                        <TableHead>Criado em</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lotes.map((lote) => (
+                        <TableRow key={lote.id}>
+                          <TableCell className="font-medium">{lote.identificacao || "-"}</TableCell>
+                          <TableCell>
+                            {lote.qtde} {rawMaterial.unit}
+                          </TableCell>
+                          <TableCell>
+                            <span className={lote.saldo > 0 ? "text-green-600 font-semibold" : "text-muted-foreground"}>
+                              {lote.saldo} {rawMaterial.unit}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {lote.data_validade ? new Date(lote.data_validade).toLocaleDateString("pt-BR") : "-"}
+                          </TableCell>
+                          <TableCell>{lote.localizacao || "-"}</TableCell>
+                          <TableCell>{lote.deposito_descricao || "-"}</TableCell>
+                          <TableCell>
+                            {lote.data_criacao ? new Date(lote.data_criacao).toLocaleDateString("pt-BR") : "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Link href="/compras">
+            <Button variant="default" className="bg-green-600 hover:bg-green-700">
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              Comprar
+            </Button>
+          </Link>
           <Badge variant={status.color} className="text-sm px-3 py-1">
             <StatusIcon className="h-4 w-4 mr-1" />
             {status.label}
