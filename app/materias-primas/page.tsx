@@ -103,20 +103,6 @@ export default function MateriasPrimas() {
     }).length,
   }
 
-  const getTypeBadgeColor = (type: string) => {
-    switch (type.toLowerCase()) {
-      case "ingrediente":
-        return "bg-amber-100 text-amber-800 border-amber-200"
-      case "embalagem":
-        return "bg-blue-100 text-blue-800 border-blue-200"
-      case "rótulo":
-      case "rotulo":
-        return "bg-purple-100 text-purple-800 border-purple-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
-    }
-  }
-
   const calculateNecessity = (current: number, reorderPoint: number) => {
     const need = Math.max(0, reorderPoint - current)
     return need
@@ -140,57 +126,57 @@ export default function MateriasPrimas() {
           <h1 className="text-3xl font-bold text-balance">Matérias-Primas</h1>
           <p className="text-muted-foreground">Gestão de ingredientes, embalagens e insumos para produção</p>
         </div>
-        <Button className="bg-[#6B8E23] hover:bg-[#556B1C]">
+        <Button>
           <ShoppingCart className="h-4 w-4 mr-2" />
           Análise de Compras
         </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-gray-200">
+        <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total de Itens</p>
                 <p className="text-3xl font-bold mt-2">{stockStats.total}</p>
               </div>
-              <Package className="h-8 w-8 text-gray-400" />
+              <Package className="h-8 w-8 text-gray-600" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-green-200">
+        <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Estoque Normal</p>
                 <p className="text-3xl font-bold mt-2">{stockStats.normal}</p>
               </div>
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
+              <CheckCircle2 className="h-8 w-8 text-gray-600" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-orange-200">
+        <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Estoque Baixo</p>
                 <p className="text-3xl font-bold mt-2">{stockStats.low}</p>
               </div>
-              <AlertTriangle className="h-8 w-8 text-orange-500" />
+              <AlertTriangle className="h-8 w-8 text-gray-600" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-red-200">
+        <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Estoque Crítico</p>
                 <p className="text-3xl font-bold mt-2">{stockStats.critical}</p>
               </div>
-              <AlertCircle className="h-8 w-8 text-red-500" />
+              <AlertCircle className="h-8 w-8 text-gray-600" />
             </div>
           </CardContent>
         </Card>
@@ -226,25 +212,30 @@ export default function MateriasPrimas() {
         {filteredMaterials.map((material) => {
           const necessity = calculateNecessity(material.current_stock, material.reorder_point)
           const isExpanded = expandedCards.has(material.id)
+          const stockStatus = getStockStatus(material.current_stock, material.reorder_point)
 
           return (
-            <Card key={material.id} className="border-gray-200">
+            <Card key={material.id}>
               <CardContent className="pt-6 space-y-4">
-                {/* Header */}
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="font-semibold text-lg">{material.name}</h3>
                     <p className="text-sm text-muted-foreground">{material.code}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className={getTypeBadgeColor(material.type)}>{material.type}</Badge>
+                    <Badge
+                      variant={
+                        stockStatus === "critical" ? "destructive" : stockStatus === "low" ? "warning" : "success"
+                      }
+                    >
+                      {material.type}
+                    </Badge>
                     <Button variant="ghost" size="sm" onClick={() => toggleCard(material.id)} className="h-6 w-6 p-0">
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
 
-                {/* Current Stock - Large Display */}
                 <div className="text-center py-4">
                   <p className="text-sm text-muted-foreground mb-1">Estoque Atual:</p>
                   <p className="text-4xl font-bold">
@@ -252,7 +243,6 @@ export default function MateriasPrimas() {
                   </p>
                 </div>
 
-                {/* Stock Metrics - 3 columns */}
                 <div className="grid grid-cols-3 gap-2 text-center text-sm">
                   <div>
                     <p className="text-muted-foreground mb-1">Estoque Mínimo</p>
@@ -274,9 +264,8 @@ export default function MateriasPrimas() {
                   </div>
                 </div>
 
-                {/* Action Buttons - 2x2 Grid */}
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="default" className="bg-[#6B8E23] hover:bg-[#556B1C]">
+                  <Button variant="default">
                     <PackageOpen className="h-4 w-4 mr-2" />
                     Ver Detalhes
                   </Button>
@@ -294,8 +283,7 @@ export default function MateriasPrimas() {
                   </Button>
                 </div>
 
-                {/* Buy Button */}
-                <Button className="w-full bg-green-600 hover:bg-green-700">
+                <Button className="w-full">
                   <ShoppingCart className="h-4 w-4 mr-2" />
                   Comprar
                 </Button>

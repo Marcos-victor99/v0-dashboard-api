@@ -104,7 +104,9 @@ export default function Fornecedores() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Performance de Entregas</CardTitle>
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -125,7 +127,9 @@ export default function Fornecedores() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Qualidade dos Fornecimentos</CardTitle>
-                <CheckCircle2 className="h-5 w-5 text-blue-600" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                  <CheckCircle2 className="h-5 w-5 text-blue-600" />
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -145,7 +149,9 @@ export default function Fornecedores() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Volume de Compras</CardTitle>
-                <DollarSign className="h-5 w-5 text-purple-600" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+                  <DollarSign className="h-5 w-5 text-purple-600" />
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -168,7 +174,9 @@ export default function Fornecedores() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Economia Negociada</CardTitle>
-                <Percent className="h-5 w-5 text-orange-600" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
+                  <Percent className="h-5 w-5 text-orange-600" />
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -192,17 +200,19 @@ export default function Fornecedores() {
         </h2>
         <div className="grid gap-4 md:grid-cols-3">
           {/* Fornecedores Críticos */}
-          <Card className="border-red-200 bg-red-50">
+          <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                </div>
                 <CardTitle className="text-sm font-semibold">Fornecedores Críticos</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-sm">2 fornecedores com atrasos recorrentes</p>
               <p className="text-xs text-muted-foreground">Risco de ruptura</p>
-              <Button className="w-full bg-green-600 hover:bg-green-700">
+              <Button className="w-full">
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 Revisar Contratos
               </Button>
@@ -210,17 +220,19 @@ export default function Fornecedores() {
           </Card>
 
           {/* Contratos Vencendo */}
-          <Card className="border-orange-200 bg-orange-50">
+          <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-orange-600" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100">
+                  <Clock className="h-4 w-4 text-orange-600" />
+                </div>
                 <CardTitle className="text-sm font-semibold">Contratos Vencendo</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-sm">3 contratos vencem em 30 dias</p>
               <p className="text-xs text-muted-foreground">Renovação necessária</p>
-              <Button className="w-full bg-green-600 hover:bg-green-700">
+              <Button className="w-full">
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 Iniciar Renovação
               </Button>
@@ -228,17 +240,19 @@ export default function Fornecedores() {
           </Card>
 
           {/* Dependência Única */}
-          <Card className="border-yellow-200 bg-yellow-50">
+          <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-yellow-600" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100">
+                  <Package className="h-4 w-4 text-yellow-600" />
+                </div>
                 <CardTitle className="text-sm font-semibold">Dependência Única</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-sm">8 produtos com fornecedor único</p>
               <p className="text-xs text-muted-foreground">Risco de concentração</p>
-              <Button className="w-full bg-green-600 hover:bg-green-700">
+              <Button className="w-full">
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 Buscar Alternativas
               </Button>
@@ -356,14 +370,10 @@ export default function Fornecedores() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-200">
-                        {supplier.category}
-                      </Badge>
+                      <Badge variant="secondary">{supplier.category}</Badge>
                       <h3 className="font-semibold">{supplier.name}</h3>
                     </div>
-                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700">
-                      Detalhes
-                    </Button>
+                    <Button size="sm">Detalhes</Button>
                   </div>
                   <p className="text-sm text-muted-foreground">{supplier.code}</p>
                 </CardHeader>
@@ -390,24 +400,24 @@ export default function Fornecedores() {
 
                   {/* Action Buttons */}
                   <div className="grid grid-cols-2 gap-2">
-                    <Button variant="default" className="bg-purple-600 hover:bg-purple-700">
+                    <Button variant="outline">
                       <ShoppingCart className="mr-2 h-4 w-4" />
                       Pedido
                     </Button>
-                    <Button variant="default" className="bg-blue-600 hover:bg-blue-700">
+                    <Button variant="outline">
                       <Package className="mr-2 h-4 w-4" />
                       Cotações
                     </Button>
-                    <Button variant="default" className="bg-green-600 hover:bg-green-700">
+                    <Button variant="outline">
                       <MessageSquare className="mr-2 h-4 w-4" />
                       WhatsApp
                     </Button>
-                    <Button variant="default" className="bg-blue-600 hover:bg-blue-700">
+                    <Button variant="outline">
                       <PhoneCall className="mr-2 h-4 w-4" />
                       Ligar
                     </Button>
                   </div>
-                  <Button variant="default" className="w-full bg-orange-600 hover:bg-orange-700">
+                  <Button variant="default" className="w-full">
                     <Mail className="mr-2 h-4 w-4" />
                     Email
                   </Button>

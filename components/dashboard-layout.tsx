@@ -60,10 +60,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         <div className="flex flex-col h-full">
           <div className="flex items-center gap-3 h-16 px-4 border-b">
-            <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-              P
-            </div>
-            <span className="font-semibold text-base text-gray-900">Beeoz Production Syst...</span>
+            <img
+              src="https://vdhxtlnadjejyyydmlit.supabase.co/storage/v1/object/public/arealeira/producao/logo-app-prod.png"
+              alt="Beeoz Logo"
+              className="h-10 w-auto object-contain"
+            />
             <Button variant="ghost" size="icon" className="ml-auto lg:hidden" onClick={() => setSidebarOpen(false)}>
               <X className="h-5 w-5" />
             </Button>

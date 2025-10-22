@@ -28,8 +28,7 @@ export default function Home() {
       trendUp: true,
       icon: DollarSign,
       iconColor: "text-blue-600",
-      bgColor: "bg-blue-50",
-      borderColor: "border-blue-200",
+      iconBg: "bg-blue-50",
       buttonText: "Ver Detalhes",
       href: "/materias-primas",
     },
@@ -40,9 +39,8 @@ export default function Home() {
       trend: "Ruptura em 5-7 dias",
       trendUp: false,
       icon: AlertTriangle,
-      iconColor: "text-red-600",
-      bgColor: "bg-red-50",
-      borderColor: "border-red-200",
+      iconColor: "text-orange-600",
+      iconBg: "bg-orange-50",
       buttonText: "Acionar Pedidos",
       href: "/ponto-pedido",
     },
@@ -53,9 +51,8 @@ export default function Home() {
       trend: "+5% vs mês anterior",
       trendUp: true,
       icon: Factory,
-      iconColor: "text-green-600",
-      bgColor: "bg-green-50",
-      borderColor: "border-green-200",
+      iconColor: "text-purple-600",
+      iconBg: "bg-purple-50",
       buttonText: "Ordens Ativas",
       href: "/ordens-producao",
     },
@@ -66,9 +63,8 @@ export default function Home() {
       trend: "3 fornecedores críticos",
       trendUp: true,
       icon: ShoppingCart,
-      iconColor: "text-purple-600",
-      bgColor: "bg-purple-50",
-      borderColor: "border-purple-200",
+      iconColor: "text-green-600",
+      iconBg: "bg-green-50",
       buttonText: "Análise de Compras",
       href: "/analise-compras",
     },
@@ -80,8 +76,7 @@ export default function Home() {
       description: "10 matérias-primas em ponto crítico",
       value: "R$ 73k em vendas",
       icon: AlertTriangle,
-      color: "border-red-200 bg-red-50",
-      iconColor: "text-red-600",
+      iconColor: "text-gray-700",
       buttonText: "Gerar Pedidos",
       buttonIcon: Zap,
       href: "/ponto-pedido",
@@ -91,8 +86,7 @@ export default function Home() {
       description: "3 produtos abaixo do mínimo",
       value: "Ruptura em 7 dias",
       icon: Package,
-      color: "border-orange-200 bg-orange-50",
-      iconColor: "text-orange-600",
+      iconColor: "text-gray-700",
       buttonText: "Programar Produção",
       buttonIcon: Zap,
       href: "/ordens-producao",
@@ -102,8 +96,7 @@ export default function Home() {
       description: "1 lote(s) vencem em 30 dias",
       value: "Valor: R$ 113k",
       icon: Clock,
-      color: "border-yellow-200 bg-yellow-50",
-      iconColor: "text-yellow-600",
+      iconColor: "text-gray-700",
       buttonText: "Criar Promoção",
       buttonIcon: Zap,
       href: "/produtos",
@@ -203,17 +196,19 @@ export default function Home() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-blue-600" />
+          <BarChart3 className="h-5 w-5 text-gray-700" />
           Visão Executiva
         </h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {executiveKpis.map((kpi) => (
-            <Card key={kpi.title} className={`${kpi.bgColor} border-2 ${kpi.borderColor}`}>
+            <Card key={kpi.title}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <kpi.icon className={`h-4 w-4 ${kpi.iconColor}`} />
-                  {kpi.title}
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{kpi.title}</CardTitle>
+                  <div className={`${kpi.iconBg} p-2 rounded-full`}>
+                    <kpi.icon className={`h-4 w-4 ${kpi.iconColor}`} />
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
@@ -241,12 +236,12 @@ export default function Home() {
 
       <div>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-red-600" />
+          <AlertTriangle className="h-5 w-5 text-gray-700" />
           Alertas e Ações Prioritárias
         </h2>
         <div className="grid gap-4 md:grid-cols-3">
           {priorityAlerts.map((alert) => (
-            <Card key={alert.title} className={`${alert.color} border-2`}>
+            <Card key={alert.title}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <alert.icon className={`h-5 w-5 ${alert.iconColor}`} />
@@ -259,7 +254,7 @@ export default function Home() {
                   <p className="text-sm font-semibold mt-1">{alert.value}</p>
                 </div>
                 <Link href={alert.href}>
-                  <Button className="w-full bg-green-700 hover:bg-green-800 text-white">
+                  <Button className="w-full">
                     <alert.buttonIcon className="h-4 w-4 mr-2" />
                     {alert.buttonText}
                   </Button>
@@ -272,7 +267,7 @@ export default function Home() {
 
       <div>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-blue-600" />
+          <TrendingUp className="h-5 w-5 text-gray-700" />
           Indicadores de Performance
         </h2>
         <div className="grid gap-4 md:grid-cols-4">
@@ -302,7 +297,7 @@ export default function Home() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Package className="h-5 w-5 text-orange-600" />
+              <Package className="h-5 w-5 text-gray-700" />
               Produtos com Estoque Baixo
             </CardTitle>
             <CardDescription className="text-sm">Produtos que atingiram o ponto de reposição</CardDescription>
@@ -324,9 +319,7 @@ export default function Home() {
                     </p>
                     <p className="text-xs text-muted-foreground">Mín: {product.minStock}</p>
                   </div>
-                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
-                    {product.status}
-                  </Badge>
+                  <Badge variant="warning">{product.status}</Badge>
                 </div>
               ))}
             </div>
@@ -336,7 +329,7 @@ export default function Home() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <AlertTriangle className="h-5 w-5 text-gray-700" />
               Ponto de Pedido Crítico
             </CardTitle>
             <CardDescription className="text-sm">Clique para ver lista completa de compras necessárias</CardDescription>
@@ -358,9 +351,7 @@ export default function Home() {
                     </p>
                     <p className="text-xs text-muted-foreground">Mín: {rm.minStock}</p>
                   </div>
-                  <Badge variant="secondary" className="bg-red-100 text-red-800 border-red-300">
-                    {rm.status}
-                  </Badge>
+                  <Badge variant="destructive">{rm.status}</Badge>
                 </div>
               ))}
             </div>

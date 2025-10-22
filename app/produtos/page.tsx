@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { Search, ShoppingCart, Package, AlertTriangle, AlertCircle } from "lucide-react"
+import { Search, ShoppingCart, Package, AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -90,7 +90,7 @@ export default function Produtos() {
           <h1 className="text-3xl font-bold text-balance">Catálogo de Produtos</h1>
           <p className="text-muted-foreground">Gestão de produtos acabados da Beeoz</p>
         </div>
-        <Button className="bg-green-600 hover:bg-green-700">
+        <Button>
           <ShoppingCart className="h-4 w-4 mr-2" />
           Análise de Compras
         </Button>
@@ -125,7 +125,7 @@ export default function Produtos() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total de Produtos</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <Package className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalProducts}</div>
@@ -134,30 +134,28 @@ export default function Produtos() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Normal</CardTitle>
-            <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center">
-              <div className="h-2 w-2 rounded-full bg-green-600" />
-            </div>
+            <CheckCircle2 className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{normalStock}</div>
+            <div className="text-2xl font-bold">{normalStock}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Baixo</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <AlertTriangle className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{lowStock}</div>
+            <div className="text-2xl font-bold">{lowStock}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Crítico</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertCircle className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{criticalStock}</div>
+            <div className="text-2xl font-bold">{criticalStock}</div>
           </CardContent>
         </Card>
       </div>
@@ -179,14 +177,7 @@ export default function Produtos() {
                       <p className="text-sm text-muted-foreground mt-1">{product.code}</p>
                     </div>
                     <Badge
-                      variant={stockStatus === "normal" ? "default" : "secondary"}
-                      className={
-                        stockStatus === "normal"
-                          ? "bg-green-600 hover:bg-green-700"
-                          : stockStatus === "low"
-                            ? "bg-yellow-600 hover:bg-yellow-700"
-                            : "bg-red-600 hover:bg-red-700"
-                      }
+                      variant={stockStatus === "normal" ? "success" : stockStatus === "low" ? "warning" : "destructive"}
                     >
                       {stockStatus === "normal" ? "Normal" : stockStatus === "low" ? "Baixo" : "Crítico"}
                     </Badge>
