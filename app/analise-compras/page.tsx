@@ -1,294 +1,345 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, Package, AlertTriangle, Phone, Mail, MessageCircle, ShoppingCart } from "lucide-react"
+import { Package, AlertTriangle, TrendingUp, FileDown, Building2 } from "lucide-react"
 
 export default function AnáliseCompras() {
-  const [selectedSupplier, setSelectedSupplier] = useState<string>("")
-  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<"materia-prima" | "fornecedor">("materia-prima")
 
-  const supplierData = {
-    "VR LABEL": {
-      email: "contato@vrlabel.com.br",
-      phone: "(11) 99999-9999",
-      items: [
-        {
-          code: "ING004",
-          name: "Açaí em Pó",
-          type: "Ingrediente",
-          needed: 10,
-          minLot: 10,
-          unitPrice: 85.5,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING005",
-          name: "Cacau em Pó Alcalino",
-          type: "Ingrediente",
-          needed: 20,
-          minLot: 20,
-          unitPrice: 45.3,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING007",
-          name: "Café Solúvel",
-          type: "Ingrediente",
-          needed: 10,
-          minLot: 10,
-          unitPrice: 120.0,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING012",
-          name: "Coco Queimado",
-          type: "Ingrediente",
-          needed: 8,
-          minLot: 8,
-          unitPrice: 95.75,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING008",
-          name: "Cupuaçu em Pó",
-          type: "Ingrediente",
-          needed: 8,
-          minLot: 8,
-          unitPrice: 110.2,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING013",
-          name: "Maracujá Desidratado",
-          type: "Ingrediente",
-          needed: 6,
-          minLot: 6,
-          unitPrice: 135.4,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING001",
-          name: "Mel Orgânico",
-          type: "Ingrediente",
-          needed: 40,
-          minLot: 40,
-          unitPrice: 65.8,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING006",
-          name: "Pasta de Avelã",
-          type: "Ingrediente",
-          needed: 8,
-          minLot: 8,
-          unitPrice: 180.5,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING010",
-          name: "Pimenta Calabresa",
-          type: "Ingrediente",
-          needed: 2,
-          minLot: 2,
-          unitPrice: 220.0,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING009",
-          name: "Pistache Triturado",
-          type: "Ingrediente",
-          needed: 6,
-          minLot: 6,
-          unitPrice: 250.3,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING002",
-          name: "Própolis Verde",
-          type: "Ingrediente",
-          needed: 4,
-          minLot: 4,
-          unitPrice: 450.0,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING003",
-          name: "Própolis Vermelha",
-          type: "Ingrediente",
-          needed: 4,
-          minLot: 4,
-          unitPrice: 520.0,
-          category: "Ingrediente",
-        },
-        {
-          code: "ING011",
-          name: "Wasabi em Pó",
-          type: "Ingrediente",
-          needed: 2,
-          minLot: 2,
-          unitPrice: 380.0,
-          category: "Ingrediente",
-        },
-      ],
-    },
-    "DN EMBALAGEM": {
-      email: "contato@dnembalagem.com.br",
-      phone: "(11) 99999-9999",
-      items: [
-        {
-          code: "EMB001",
-          name: "Frascos PET 200g",
-          type: "Embalagem",
-          needed: 2000,
-          minLot: 2000,
-          unitPrice: 3.5,
-          category: "Embalagem",
-        },
-        {
-          code: "EMB002",
-          name: "Frascos PET 300g",
-          type: "Embalagem",
-          needed: 2000,
-          minLot: 2000,
-          unitPrice: 4.2,
-          category: "Embalagem",
-        },
-        {
-          code: "EMB003",
-          name: "Frascos Vidro 250g",
-          type: "Embalagem",
-          needed: 1200,
-          minLot: 1200,
-          unitPrice: 8.5,
-          category: "Embalagem",
-        },
-        {
-          code: "EMB004",
-          name: "Tampas Flip Top",
-          type: "Embalagem",
-          needed: 2000,
-          minLot: 2000,
-          unitPrice: 1.8,
-          category: "Embalagem",
-        },
-        {
-          code: "EMB005",
-          name: "Tampas Rosca",
-          type: "Embalagem",
-          needed: 2000,
-          minLot: 2000,
-          unitPrice: 1.45,
-          category: "Embalagem",
-        },
-      ],
-    },
-    IMAGEPACK: {
-      email: "contato@imagepack.com.br",
-      phone: "(11) 99999-9999",
-      items: [
-        {
-          code: "ROT004",
-          name: "Rótulos Cacau Bee",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-        {
-          code: "ROT002",
-          name: "Rótulos Honey Fusion",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-        {
-          code: "ROT005",
-          name: "Rótulos Honey Pepper",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-        {
-          code: "ROT003",
-          name: "Rótulos Mel Biomas",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-        {
-          code: "ROT001",
-          name: "Rótulos Propolift",
-          type: "Rótulo",
-          needed: 800,
-          minLot: 1000,
-          unitPrice: 2.8,
-          category: "Rótulo",
-        },
-      ],
-    },
-  }
-
-  const analysis = {
-    product: {
-      code: "PRD00201",
-      name: "Propolift Extrato Alcoólico Verde",
+  const rawMaterials = [
+    {
+      urgency: "Crítico",
+      code: "ING004",
+      name: "Açaí em Pó",
+      type: "Ingrediente",
       currentStock: 0,
-      minStock: 50,
-      reorderPoint: 30,
+      reorderPoint: 10,
+      needed: 10,
+      minLot: 10,
+      unitPrice: 52.38,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
     },
-    components: [
-      {
-        code: "MP001",
-        name: "Própolis Verde",
-        category: "Própolis",
-        supplier: "Apiário São Paulo",
-        physicalStock: 2,
-        reserved: 0,
-        available: 2,
-        minStock: 50,
-        unitCost: 150,
-        totalValue: 300,
-      },
-      {
-        code: "MP002",
-        name: "Álcool 70%",
-        category: "Solvente",
-        supplier: "Química Brasil",
-        physicalStock: 15,
-        reserved: 5,
-        available: 10,
-        minStock: 100,
-        unitCost: 25,
-        totalValue: 375,
-      },
-      {
-        code: "MP003",
-        name: "Frasco 30ml",
-        category: "Embalagem",
-        supplier: "Embalagens SP",
-        physicalStock: 50,
-        reserved: 20,
-        available: 30,
-        minStock: 200,
-        unitCost: 2.5,
-        totalValue: 125,
-      },
-    ],
-    totalStockValue: 800,
-  }
+    {
+      urgency: "Crítico",
+      code: "ING005",
+      name: "Cacau em Pó Alcalino",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 20,
+      needed: 20,
+      minLot: 20,
+      unitPrice: 45.3,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING007",
+      name: "Café Solúvel",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 10,
+      needed: 10,
+      minLot: 10,
+      unitPrice: 24.58,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING012",
+      name: "Coco Queimado",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 8,
+      needed: 8,
+      minLot: 8,
+      unitPrice: 56.15,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING008",
+      name: "Cupuaçu em Pó",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 8,
+      needed: 8,
+      minLot: 8,
+      unitPrice: 110.2,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "EMB001",
+      name: "Frascos PET 200g",
+      type: "Embalagem",
+      currentStock: 8,
+      reorderPoint: 2000,
+      needed: 2000,
+      minLot: 2000,
+      unitPrice: 44.45,
+      supplier: "DN EMBALAGEM",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "EMB002",
+      name: "Frascos PET 300g",
+      type: "Embalagem",
+      currentStock: 8,
+      reorderPoint: 2000,
+      needed: 2000,
+      minLot: 2000,
+      unitPrice: 21.56,
+      supplier: "DN EMBALAGEM",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "EMB003",
+      name: "Frascos Vidro 250g",
+      type: "Embalagem",
+      currentStock: 8,
+      reorderPoint: 1200,
+      needed: 1200,
+      minLot: 1200,
+      unitPrice: 8.71,
+      supplier: "DN EMBALAGEM",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING013",
+      name: "Maracujá Desidratado",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 6,
+      needed: 6,
+      minLot: 10,
+      unitPrice: 50.88,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING001",
+      name: "Mel Orgânico",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 40,
+      needed: 40,
+      minLot: 40,
+      unitPrice: 74.24,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING006",
+      name: "Pasta de Avelã",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 8,
+      needed: 8,
+      minLot: 10,
+      unitPrice: 173.61,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING010",
+      name: "Pimenta Calabresa",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 2,
+      needed: 2,
+      minLot: 5,
+      unitPrice: 14.55,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING009",
+      name: "Pistache Triturado",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 6,
+      needed: 6,
+      minLot: 10,
+      unitPrice: 33.09,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING002",
+      name: "Própolis Verde",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 4,
+      needed: 4,
+      minLot: 5,
+      unitPrice: 305.44,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING003",
+      name: "Própolis Vermelha",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 4,
+      needed: 4,
+      minLot: 5,
+      unitPrice: 126.03,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ROT004",
+      name: "Rótulos Cacau Bee",
+      type: "Rótulo",
+      currentStock: 8,
+      reorderPoint: 800,
+      needed: 800,
+      minLot: 1000,
+      unitPrice: 86.72,
+      supplier: "IMAGEPACK",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ROT002",
+      name: "Rótulos Honey Fusion",
+      type: "Rótulo",
+      currentStock: 8,
+      reorderPoint: 800,
+      needed: 800,
+      minLot: 1000,
+      unitPrice: 52.85,
+      supplier: "IMAGEPACK",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ROT005",
+      name: "Rótulos Honey Pepper",
+      type: "Rótulo",
+      currentStock: 8,
+      reorderPoint: 800,
+      needed: 800,
+      minLot: 1000,
+      unitPrice: 81.13,
+      supplier: "IMAGEPACK",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ROT003",
+      name: "Rótulos Mel Biomas",
+      type: "Rótulo",
+      currentStock: 8,
+      reorderPoint: 800,
+      needed: 800,
+      minLot: 1000,
+      unitPrice: 76.45,
+      supplier: "IMAGEPACK",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ROT001",
+      name: "Rótulos Propolift",
+      type: "Rótulo",
+      currentStock: 8,
+      reorderPoint: 800,
+      needed: 800,
+      minLot: 1000,
+      unitPrice: 93.71,
+      supplier: "IMAGEPACK",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "EMB004",
+      name: "Tampas Flip Top",
+      type: "Embalagem",
+      currentStock: 8,
+      reorderPoint: 2000,
+      needed: 2000,
+      minLot: 2000,
+      unitPrice: 86.79,
+      supplier: "DN EMBALAGEM",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "EMB005",
+      name: "Tampas Rosca",
+      type: "Embalagem",
+      currentStock: 8,
+      reorderPoint: 2000,
+      needed: 2000,
+      minLot: 2000,
+      unitPrice: 24.79,
+      supplier: "DN EMBALAGEM",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+    {
+      urgency: "Crítico",
+      code: "ING011",
+      name: "Wasabi em Pó",
+      type: "Ingrediente",
+      currentStock: 0,
+      reorderPoint: 2,
+      needed: 2,
+      minLot: 5,
+      unitPrice: 182.45,
+      supplier: "VR LABEL",
+      deadline: "15 dias",
+      payment: "30 dias",
+    },
+  ]
+
+  const totalItems = rawMaterials.length
+  const criticalItems = rawMaterials.filter((item) => item.urgency === "Crítico").length
+  const totalNeeded = rawMaterials.reduce((sum, item) => sum + item.needed * item.unitPrice, 0)
+  const totalMinLot = rawMaterials.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0)
+  const difference = totalMinLot - totalNeeded
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -297,481 +348,322 @@ export default function AnáliseCompras() {
     }).format(value)
   }
 
-  const getStockStatus = (available: number, minStock: number) => {
-    if (available === 0) return <Badge variant="destructive">Crítico</Badge>
-    if (available <= minStock * 0.5) return <Badge className="bg-yellow-500 hover:bg-yellow-600">Baixo</Badge>
-    if (available <= minStock) return <Badge variant="secondary">Atenção</Badge>
-    return (
-      <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-        OK
-      </Badge>
-    )
-  }
-
   const getTypeBadge = (type: string) => {
     const colors = {
-      Ingrediente: "bg-green-100 text-green-800 hover:bg-green-200",
-      Embalagem: "bg-blue-100 text-blue-800 hover:bg-blue-200",
-      Rótulo: "bg-purple-100 text-purple-800 hover:bg-purple-200",
+      Ingrediente: "bg-green-100 text-green-800 hover:bg-green-200 border-green-200",
+      Embalagem: "bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200",
+      Rótulo: "bg-purple-100 text-purple-800 hover:bg-purple-200 border-purple-200",
     }
     return <Badge className={colors[type as keyof typeof colors] || ""}>{type}</Badge>
   }
 
-  const handleWhatsApp = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    const items = data.items.map((item) => `• ${item.name} (${item.code}): ${item.needed} un`).join("\n")
-
-    const message = `Olá! Gostaria de solicitar uma cotação para os seguintes itens:\n\n${items}\n\nAguardo retorno.`
-    const phone = data.phone.replace(/\D/g, "")
-    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, "_blank")
+  const groupBySupplier = () => {
+    const grouped = rawMaterials.reduce(
+      (acc, item) => {
+        if (!acc[item.supplier]) {
+          acc[item.supplier] = []
+        }
+        acc[item.supplier].push(item)
+        return acc
+      },
+      {} as Record<string, typeof rawMaterials>,
+    )
+    return grouped
   }
 
-  const handleEmail = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    const items = data.items
-      .map((item) => `• ${item.name} (${item.code}): ${item.needed} un - ${formatCurrency(item.unitPrice)}`)
-      .join("\n")
-
-    const subject = "Solicitação de Cotação"
-    const body = `Prezados,\n\nGostaria de solicitar uma cotação para os seguintes itens:\n\n${items}\n\nAguardo retorno.\n\nAtenciosamente,\nBeeoz Produção Ltda`
-
-    window.location.href = `mailto:${data.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-  }
-
-  const handleCall = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    window.location.href = `tel:${data.phone.replace(/\D/g, "")}`
-  }
-
-  const formatPurchaseOrderEmail = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    const items = data.items
-      .map((item) => {
-        const totalNeeded = item.needed * item.unitPrice
-        const totalMinLot = item.minLot * item.unitPrice
-        return `• ${item.name} (${item.code})\n  Qtd. Necessária: ${item.needed} un - ${formatCurrency(totalNeeded)}\n  Lote Mínimo: ${item.minLot} un - ${formatCurrency(totalMinLot)}`
-      })
-      .join("\n\n")
-
-    const totalNeeded = data.items.reduce((sum, item) => sum + item.needed * item.unitPrice, 0)
-    const totalMinLot = data.items.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0)
-
-    const subject = `Pedido de Compra - ${supplier}`
-    const body = `Prezados ${supplier},
-
-Segue pedido de compra:
-
-DADOS DO COMPRADOR:
-Empresa: Beeoz Produção Ltda
-CNPJ: 12.345.678/0001-90
-Endereço: Rua das Indústrias, 123 - São Paulo/SP
-Contato: (11) 99999-9999
-
-ITENS DO PEDIDO:
-
-${items}
-
-TOTAIS:
-Total Necessário: ${formatCurrency(totalNeeded)}
-Total Lote Mínimo: ${formatCurrency(totalMinLot)}
-
-CONDIÇÕES:
-Prazo de Entrega: 15 dias
-Forma de Pagamento: 30 dias
-
-Atenciosamente,
-Beeoz Produção Ltda`
-
-    window.location.href = `mailto:${data.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-  }
-
-  const formatPurchaseOrderWhatsApp = (supplier: string) => {
-    const data = supplierData[supplier as keyof typeof supplierData]
-    const items = data.items
-      .map(
-        (item) => `• ${item.name} (${item.code}): ${item.minLot} un - ${formatCurrency(item.minLot * item.unitPrice)}`,
-      )
-      .join("\n")
-
-    const totalMinLot = data.items.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0)
-
-    const message = `Olá! Segue pedido de compra:\n\n${items}\n\n*Total: ${formatCurrency(totalMinLot)}*\n\nPrazo: 15 dias\nPagamento: 30 dias`
-    const phone = data.phone.replace(/\D/g, "")
-    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, "_blank")
-  }
-
-  const selectedSupplierData = selectedSupplier ? supplierData[selectedSupplier as keyof typeof supplierData] : null
+  const supplierGroups = groupBySupplier()
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-balance">Análise de Compras</h1>
-        <p className="text-muted-foreground">Análise detalhada de necessidades de compra por produto</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-balance">Análise de Compras - Matérias-Primas</h1>
+          <p className="text-muted-foreground">
+            Análise de necessidades de reposição de matérias-primas, embalagens e insumos
+          </p>
+        </div>
+        <Button variant="outline" className="gap-2 bg-transparent">
+          <FileDown className="h-4 w-4" />
+          Exportar
+        </Button>
       </div>
 
-      <Tabs defaultValue="produto" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="produto">Por Produto</TabsTrigger>
-          <TabsTrigger value="fornecedor">Por Fornecedor</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="produto" className="space-y-6">
-          {/* Product Info */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    {analysis.product.name}
-                  </CardTitle>
-                  <CardDescription>Código: {analysis.product.code}</CardDescription>
-                </div>
-                <Badge variant="destructive" className="text-lg">
-                  <AlertTriangle className="h-4 w-4 mr-1" />
-                  Estoque Crítico
-                </Badge>
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total de Itens</p>
+                <p className="text-3xl font-bold mt-2">{totalItems}</p>
+                <p className="text-xs text-muted-foreground mt-1">Matérias-primas</p>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <div className="text-sm text-muted-foreground">Estoque Atual</div>
-                  <div className="text-2xl font-bold">{analysis.product.currentStock}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Estoque Mínimo</div>
-                  <div className="text-2xl font-bold">{analysis.product.minStock}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Ponto de Reposição</div>
-                  <div className="text-2xl font-bold">{analysis.product.reorderPoint}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              <Package className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Components Analysis */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Itens Críticos</p>
+                <p className="text-3xl font-bold mt-2">{criticalItems}</p>
+                <p className="text-xs text-muted-foreground mt-1">Estoque crítico</p>
+              </div>
+              <AlertTriangle className="h-8 w-8 text-red-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Valor Necessário</p>
+                <p className="text-3xl font-bold mt-2">{formatCurrency(totalNeeded)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Quantidade necessária</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Valor Lote Mínimo</p>
+                <p className="text-3xl font-bold mt-2">{formatCurrency(totalMinLot)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Quantidade lote mínimo</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          variant={viewMode === "materia-prima" ? "default" : "outline"}
+          className={viewMode === "materia-prima" ? "bg-green-600 hover:bg-green-700" : "bg-transparent hover:bg-muted"}
+          onClick={() => setViewMode("materia-prima")}
+        >
+          Por Matéria-Prima
+        </Button>
+        <Button
+          variant={viewMode === "fornecedor" ? "default" : "outline"}
+          className={viewMode === "fornecedor" ? "bg-green-600 hover:bg-green-700" : "bg-transparent hover:bg-muted"}
+          onClick={() => setViewMode("fornecedor")}
+        >
+          Por Fornecedor
+        </Button>
+      </div>
+
+      {viewMode === "materia-prima" ? (
+        <>
           <Card>
-            <CardHeader>
-              <CardTitle>Componentes e Matérias-Primas</CardTitle>
-              <CardDescription>Análise de disponibilidade de cada componente necessário</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead>Fornecedor</TableHead>
-                    <TableHead className="text-right">Físico</TableHead>
-                    <TableHead className="text-right">Reservado</TableHead>
-                    <TableHead className="text-right">Disponível</TableHead>
-                    <TableHead className="text-right">Mínimo</TableHead>
-                    <TableHead className="text-right">Custo Unit.</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {analysis.components.map((component) => (
-                    <TableRow key={component.code}>
-                      <TableCell className="font-mono">{component.code}</TableCell>
-                      <TableCell className="font-medium">{component.name}</TableCell>
-                      <TableCell>{component.category}</TableCell>
-                      <TableCell>{component.supplier}</TableCell>
-                      <TableCell className="text-right">{component.physicalStock}</TableCell>
-                      <TableCell className="text-right">{component.reserved}</TableCell>
-                      <TableCell className="text-right font-semibold">{component.available}</TableCell>
-                      <TableCell className="text-right">{component.minStock}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(component.unitCost)}</TableCell>
-                      <TableCell>{getStockStatus(component.available, component.minStock)}</TableCell>
+            <CardContent className="pt-6">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Compras por Matéria-Prima
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Lista completa de itens que necessitam reposição, ordenados por urgência
+                </p>
+              </div>
+
+              <div className="border rounded-lg overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Urgência</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="text-right">Estoque Atual</TableHead>
+                      <TableHead className="text-right">Ponto de Pedido</TableHead>
+                      <TableHead className="text-right">Qtd. Necessária</TableHead>
+                      <TableHead className="text-right">Lote Mínimo</TableHead>
+                      <TableHead className="text-right">Preço Unit.</TableHead>
+                      <TableHead className="text-right">Total Necessário</TableHead>
+                      <TableHead className="text-right">Total Lote Mín.</TableHead>
+                      <TableHead>Fornecedor</TableHead>
+                      <TableHead>Prazo</TableHead>
+                      <TableHead>Pagamento</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumo Financeiro</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between text-xl font-bold">
-                <span>Valor Total em Estoque:</span>
-                <span className="text-primary">{formatCurrency(analysis.totalStockValue)}</span>
+                  </TableHeader>
+                  <TableBody>
+                    {rawMaterials.map((item) => (
+                      <TableRow key={item.code}>
+                        <TableCell>
+                          <Badge
+                            variant="destructive"
+                            className="bg-red-500 hover:bg-red-600 text-white border-red-500"
+                          >
+                            {item.urgency}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">{item.code}</TableCell>
+                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell>{getTypeBadge(item.type)}</TableCell>
+                        <TableCell className="text-right text-red-600 font-semibold">
+                          {item.currentStock} {item.type === "Ingrediente" ? "kg" : "un"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.reorderPoint} {item.type === "Ingrediente" ? "kg" : "un"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.needed} {item.type === "Ingrediente" ? "kg" : "un"}
+                        </TableCell>
+                        <TableCell className="text-right text-blue-600 font-semibold">
+                          {item.minLot} {item.type === "Ingrediente" ? "kg" : "un"}
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
+                        <TableCell className="text-right text-green-600 font-semibold">
+                          {formatCurrency(item.needed * item.unitPrice)}
+                        </TableCell>
+                        <TableCell className="text-right text-blue-600 font-semibold">
+                          {formatCurrency(item.minLot * item.unitPrice)}
+                        </TableCell>
+                        <TableCell>{item.supplier}</TableCell>
+                        <TableCell>{item.deadline}</TableCell>
+                        <TableCell>{item.payment}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>
 
-          {/* Actions */}
-          <div className="flex gap-3">
-            <Button className="flex-1">
-              <FileText className="h-4 w-4 mr-2" />
-              Gerar Requisição de Compra
-            </Button>
-            <Button variant="outline" className="flex-1 bg-transparent">
-              Exportar Análise
-            </Button>
+          <div className="flex flex-col items-end gap-2 text-lg font-bold">
+            <div>
+              <span className="text-muted-foreground">TOTAL NECESSÁRIO:</span>
+              <span className="ml-2">{formatCurrency(totalNeeded)}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">TOTAL LOTE MÍNIMO:</span>
+              <span className="ml-2 text-blue-600">{formatCurrency(totalMinLot)}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">DIFERENÇA:</span>
+              <span className="ml-2 text-orange-600">{formatCurrency(difference)}</span>
+            </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="fornecedor" className="space-y-6">
-          {Object.entries(supplierData).map(([supplier, data]) => {
-            const totalNeeded = data.items.reduce((sum, item) => sum + item.needed * item.unitPrice, 0)
-            const totalMinLot = data.items.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0)
+        </>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(supplierGroups).map(([supplier, items]) => {
+            const supplierTotalNeeded = items.reduce((sum, item) => sum + item.needed * item.unitPrice, 0)
+            const supplierTotalMinLot = items.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0)
 
             return (
               <Card key={supplier}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>{supplier}</CardTitle>
-                      <CardDescription>
-                        {data.items.length} itens • Subtotal Lote Mínimo: {formatCurrency(totalMinLot)}
-                      </CardDescription>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-blue-600" />
+                      {supplier}
+                    </h2>
+                    <span className="text-xl font-bold text-blue-600">{formatCurrency(supplierTotalMinLot)}</span>
+                  </div>
+
+                  <div className="border rounded-lg overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Urgência</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Item</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead className="text-right">Qtd. Necessária</TableHead>
+                          <TableHead className="text-right">Lote Mínimo</TableHead>
+                          <TableHead className="text-right">Preço Unit.</TableHead>
+                          <TableHead className="text-right">Total Necessário</TableHead>
+                          <TableHead className="text-right">Total Lote Mín.</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {items.map((item) => (
+                          <TableRow key={item.code}>
+                            <TableCell>
+                              <Badge
+                                variant="destructive"
+                                className="bg-red-500 hover:bg-red-600 text-white border-red-500"
+                              >
+                                {item.urgency}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{item.code}</TableCell>
+                            <TableCell className="font-medium">{item.name}</TableCell>
+                            <TableCell>{getTypeBadge(item.type)}</TableCell>
+                            <TableCell className="text-right">
+                              {item.needed} {item.type === "Ingrediente" ? "kg" : "un"}
+                            </TableCell>
+                            <TableCell className="text-right text-blue-600 font-semibold">
+                              {item.minLot} {item.type === "Ingrediente" ? "kg" : "un"}
+                            </TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
+                            <TableCell className="text-right text-green-600 font-semibold">
+                              {formatCurrency(item.needed * item.unitPrice)}
+                            </TableCell>
+                            <TableCell className="text-right text-blue-600 font-semibold">
+                              {formatCurrency(item.minLot * item.unitPrice)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between text-sm">
+                    <div className="flex gap-8">
+                      <div>
+                        <span className="text-muted-foreground">Prazo de Entrega:</span>
+                        <span className="ml-2 font-semibold">{items[0].deadline}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Forma de Pagamento:</span>
+                        <span className="ml-2 font-semibold">{items[0].payment}</span>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 border-green-600 text-green-600 hover:bg-green-50 bg-transparent"
-                        onClick={() => handleWhatsApp(supplier)}
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        WhatsApp
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 border-blue-600 text-blue-600 hover:bg-blue-50 bg-transparent"
-                        onClick={() => handleEmail(supplier)}
-                      >
-                        <Mail className="h-4 w-4" />
-                        E-mail
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 border-purple-600 text-purple-600 hover:bg-purple-50 bg-transparent"
-                        onClick={() => handleCall(supplier)}
-                      >
-                        <Phone className="h-4 w-4" />
-                        Ligar
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="gap-2 bg-green-600 hover:bg-green-700"
-                        onClick={() => {
-                          setSelectedSupplier(supplier)
-                          setIsPurchaseModalOpen(true)
-                        }}
-                      >
-                        <ShoppingCart className="h-4 w-4" />
-                        Comprar
-                      </Button>
+                    <div className="flex flex-col items-end gap-1">
+                      <div>
+                        <span className="text-muted-foreground">Subtotal Necessário:</span>
+                        <span className="ml-2 font-bold">{formatCurrency(supplierTotalNeeded)}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Subtotal Lote Mínimo:</span>
+                        <span className="ml-2 font-bold text-blue-600">{formatCurrency(supplierTotalMinLot)}</span>
+                      </div>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead className="text-right">Qtd. Necessária</TableHead>
-                        <TableHead className="text-right">Lote Mínimo</TableHead>
-                        <TableHead className="text-right">Preço Unit.</TableHead>
-                        <TableHead className="text-right">Total Necessário</TableHead>
-                        <TableHead className="text-right">Total Lote Mín.</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.items.map((item) => (
-                        <TableRow key={item.code}>
-                          <TableCell className="font-mono">{item.code}</TableCell>
-                          <TableCell className="font-medium">{item.name}</TableCell>
-                          <TableCell>{getTypeBadge(item.type)}</TableCell>
-                          <TableCell className="text-right">{item.needed}</TableCell>
-                          <TableCell className="text-right">
-                            <span className="text-blue-600 font-semibold">{item.minLot}</span>
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
-                          <TableCell className="text-right text-green-600 font-semibold">
-                            {formatCurrency(item.needed * item.unitPrice)}
-                          </TableCell>
-                          <TableCell className="text-right text-blue-600 font-semibold">
-                            {formatCurrency(item.minLot * item.unitPrice)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={6} className="text-right">
-                          TOTAIS:
-                        </TableCell>
-                        <TableCell className="text-right text-green-600">{formatCurrency(totalNeeded)}</TableCell>
-                        <TableCell className="text-right text-blue-600">{formatCurrency(totalMinLot)}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
                 </CardContent>
               </Card>
             )
           })}
-        </TabsContent>
-      </Tabs>
 
-      <Dialog open={isPurchaseModalOpen} onOpenChange={setIsPurchaseModalOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Pedido de Compra - {selectedSupplier}</DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              Revise os itens e envie o pedido de compra para o fornecedor
-            </p>
-          </DialogHeader>
-
-          {selectedSupplierData && (
-            <div className="space-y-6">
-              {/* Buyer Data */}
-              <div className="grid gap-4 md:grid-cols-2 p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <h3 className="font-semibold mb-2">Dados do Comprador</h3>
-                  <div className="space-y-1 text-sm">
-                    <p>
-                      <span className="font-medium">Empresa:</span> Beeoz Produção Ltda
-                    </p>
-                    <p>
-                      <span className="font-medium">Endereço:</span> Rua das Indústrias, 123 - São Paulo/SP
-                    </p>
-                  </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-base">
+                  <span className="font-semibold text-muted-foreground">TOTAL GERAL NECESSÁRIO:</span>
+                  <span className="font-bold text-green-600 text-lg">{formatCurrency(totalNeeded)}</span>
                 </div>
-                <div>
-                  <h3 className="font-semibold mb-2">&nbsp;</h3>
-                  <div className="space-y-1 text-sm">
-                    <p>
-                      <span className="font-medium">CNPJ:</span> 12.345.678/0001-90
-                    </p>
-                    <p>
-                      <span className="font-medium">Contato:</span> (11) 99999-9999
-                    </p>
-                  </div>
+                <div className="flex items-center justify-between text-base">
+                  <span className="font-semibold text-muted-foreground">TOTAL GERAL LOTE MÍNIMO:</span>
+                  <span className="font-bold text-blue-600 text-lg">{formatCurrency(totalMinLot)}</span>
+                </div>
+                <div className="flex items-center justify-between text-base pt-2 border-t">
+                  <span className="font-semibold text-muted-foreground">DIFERENÇA:</span>
+                  <span className="font-bold text-orange-600 text-lg">{formatCurrency(difference)}</span>
                 </div>
               </div>
-
-              {/* Supplier Data */}
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <h3 className="font-semibold mb-2">Dados do Fornecedor</h3>
-                <div className="grid gap-2 md:grid-cols-3 text-sm">
-                  <p>
-                    <span className="font-medium">Nome:</span> {selectedSupplier}
-                  </p>
-                  <p>
-                    <span className="font-medium">E-mail:</span> {selectedSupplierData.email}
-                  </p>
-                  <p>
-                    <span className="font-medium">Telefone:</span> {selectedSupplierData.phone}
-                  </p>
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <div>
-                <h3 className="font-semibold mb-3">Itens do Pedido</h3>
-                <div className="border rounded-lg overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead className="text-right">Qtd. Necessária</TableHead>
-                        <TableHead className="text-right">Lote Mínimo</TableHead>
-                        <TableHead className="text-right">Preço Unit.</TableHead>
-                        <TableHead className="text-right">Total Necessário</TableHead>
-                        <TableHead className="text-right">Total Lote Mín.</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedSupplierData.items.map((item) => (
-                        <TableRow key={item.code}>
-                          <TableCell className="font-mono">{item.code}</TableCell>
-                          <TableCell className="font-medium">{item.name}</TableCell>
-                          <TableCell>{getTypeBadge(item.type)}</TableCell>
-                          <TableCell className="text-right">{item.needed}</TableCell>
-                          <TableCell className="text-right">
-                            <span className="text-blue-600 font-semibold">{item.minLot}</span>
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
-                          <TableCell className="text-right text-green-600 font-semibold">
-                            {formatCurrency(item.needed * item.unitPrice)}
-                          </TableCell>
-                          <TableCell className="text-right text-blue-600 font-semibold">
-                            {formatCurrency(item.minLot * item.unitPrice)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={6} className="text-right">
-                          TOTAIS:
-                        </TableCell>
-                        <TableCell className="text-right text-green-600">
-                          {formatCurrency(
-                            selectedSupplierData.items.reduce((sum, item) => sum + item.needed * item.unitPrice, 0),
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right text-blue-600">
-                          {formatCurrency(
-                            selectedSupplierData.items.reduce((sum, item) => sum + item.minLot * item.unitPrice, 0),
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              {/* Additional Info */}
-              <div className="grid gap-4 md:grid-cols-2 p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <span className="font-medium">Prazo de Entrega:</span> 15 dias
-                </div>
-                <div>
-                  <span className="font-medium">Forma de Pagamento:</span> 30 dias
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                  onClick={() => formatPurchaseOrderEmail(selectedSupplier)}
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  Enviar por E-mail
-                </Button>
-                <Button
-                  className="flex-1 bg-green-700 hover:bg-green-800"
-                  onClick={() => formatPurchaseOrderWhatsApp(selectedSupplier)}
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Enviar por WhatsApp
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 bg-transparent"
-                  onClick={() => alert("Funcionalidade de download PDF será implementada em breve")}
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Baixar PDF
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
