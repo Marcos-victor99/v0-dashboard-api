@@ -30,6 +30,7 @@ type Product = {
 export default function Produtos() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
+  const [statusFilter, setStatusFilter] = useState<"ativo" | "inativo" | "todos">("ativo")
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -38,7 +39,13 @@ export default function Produtos() {
       const supabase = createClient()
 
       console.log("[v0] Fetching products from 'produtos' table...")
-      const { data, error } = await supabase.from("produtos").select("*").order("identificacao", { ascending: true })
+      let query = supabase.from("produtos").select("*")
+
+      if (statusFilter !== "todos") {
+        query = query.eq("status", statusFilter)
+      }
+
+      const { data, error } = await query.order("identificacao", { ascending: true })
 
       if (error) {
         console.error("[v0] Error fetching products:", error)
@@ -51,7 +58,7 @@ export default function Produtos() {
     }
 
     fetchProducts()
-  }, [])
+  }, [statusFilter])
 
   const getStockStatus = (product: Product) => {
     const minQty = product.qtde_minima || 50
@@ -95,7 +102,7 @@ export default function Produtos() {
         </Button>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
@@ -118,6 +125,29 @@ export default function Produtos() {
             ))}
           </SelectContent>
         </Select>
+        <div className="flex gap-2">
+          <Button
+            variant={statusFilter === "ativo" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("ativo")}
+          >
+            Ativo
+          </Button>
+          <Button
+            variant={statusFilter === "inativo" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("inativo")}
+          >
+            Inativo
+          </Button>
+          <Button
+            variant={statusFilter === "todos" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("todos")}
+          >
+            Todos
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
