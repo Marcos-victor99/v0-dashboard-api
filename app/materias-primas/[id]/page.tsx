@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,59 +14,86 @@ import {
   Users,
   FileText,
   ShoppingCart,
-  Calendar,
   DollarSign,
   BarChart3,
+  ArrowLeft,
+  PackageOpen,
 } from "lucide-react"
-import { TechnicalSheetDialog } from "@/components/technical-sheet-dialog"
-import { SuppliersDialog } from "@/components/suppliers-dialog"
-import { QuickPurchaseOrderDialog } from "@/components/quick-purchase-order-dialog"
+import { createBrowserClient } from "@supabase/ssr"
 
 export default function MateriaPrimaDetalhes() {
   const params = useParams()
   const router = useRouter()
   const id = params?.id ? Number.parseInt(params.id as string) : 0
 
-  const [showTechnicalSheet, setShowTechnicalSheet] = useState(false)
-  const [showSuppliersDialog, setShowSuppliersDialog] = useState(false)
-  const [showPurchaseDialog, setShowPurchaseDialog] = useState(false)
+  const [rawMaterial, setRawMaterial] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-  // Mock data - replace with actual data fetching
-  const rawMaterial = {
-    id,
-    code: "MP001",
-    name: "Própolis Verde",
-    type: "ingredient",
-    currentStock: 2,
-    minStock: 50,
-    reorderPoint: 75,
-    unit: "kg",
-    unitCost: 150.0,
+  const supabase = createBrowserClient(
+    "https://vdhxtlnadjejyyydmlit.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkaHh0bG5hZGplanl5eWRtbGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExODAzMDEsImV4cCI6MjA1Njc1NjMwMX0.TWzazmeto1Ic5cNAf7LrDjHcrbuaofCid_3xNiBnVkE",
+  )
+
+  useEffect(() => {
+    fetchMaterialDetails()
+  }, [id])
+
+  async function fetchMaterialDetails() {
+    try {
+      console.log("[v0] Fetching material details for ID:", id)
+
+      const { data, error } = await supabase.from("produtos").select("*").eq("id", id).single()
+
+      if (error) {
+        console.error("[v0] Error fetching material:", error)
+        throw error
+      }
+
+      console.log("[v0] Material data:", data)
+
+      setRawMaterial({
+        id: data.id,
+        code: data.identificacao || "",
+        name: data.descricao || "",
+        type: data.tipo || "",
+        currentStock: data.estoque_atual || 0,
+        minStock: data.quantidade_minima || 0,
+        reorderPoint: data.ponto_reposicao || data.quantidade_minima || 0,
+        unit: data.unidade_medida || "UN",
+        unitCost: data.valor_custo || 0,
+        status: data.status || "ativo",
+      })
+    } catch (error) {
+      console.error("[v0] Error fetching material details:", error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const suppliers = [
-    {
-      id: 1,
-      name: "Apiário Silva",
-      contact: "João Silva",
-      unitPrice: 145.0,
-      minQuantity: 10,
-      leadTimeDays: 15,
-    },
-    {
-      id: 2,
-      name: "Mel & Cia",
-      contact: "Maria Santos",
-      unitPrice: 155.0,
-      minQuantity: 5,
-      leadTimeDays: 10,
-    },
-  ]
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Carregando detalhes...</p>
+        </div>
+      </div>
+    )
+  }
 
-  const products = [
-    { id: 1, name: "Propolift Extrato Verde", code: "PRD00201", quantity: 50, unit: "g" },
-    { id: 2, name: "Propolift Spray Verde", code: "PRD00203", quantity: 30, unit: "g" },
-  ]
+  if (!rawMaterial) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Material não encontrado</h3>
+          <Link href="/materias-primas">
+            <Button>Voltar para Matérias-Primas</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   const stockLevel = rawMaterial.currentStock || 0
   const minStock = rawMaterial.minStock || 0
@@ -80,16 +108,23 @@ export default function MateriaPrimaDetalhes() {
   const status = getStockStatus()
   const StatusIcon = status.icon
 
-  const suppliersCount = suppliers?.length || 0
-  const productsCount = products?.length || 0
+  const suppliersCount = 0 // TODO: Fetch from database
+  const productsCount = 0 // TODO: Fetch from database
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
+      <Link href="/materias-primas">
+        <Button variant="ghost" size="sm">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar para Matérias-Primas
+        </Button>
+      </Link>
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <div className="p-3 bg-primary/10 rounded-lg">
-            <Package className="h-8 w-8 text-primary" />
+          <div className="p-3 bg-green-100 rounded-lg">
+            <PackageOpen className="h-8 w-8 text-green-600" />
           </div>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{rawMaterial.name}</h1>
@@ -97,25 +132,25 @@ export default function MateriaPrimaDetalhes() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowTechnicalSheet(true)}>
+          <Button variant="outline">
             <FileText className="h-4 w-4 mr-2" />
             Ficha Técnica
           </Button>
-          <Button variant="default" onClick={() => setShowSuppliersDialog(true)}>
+          <Button variant="outline">
             <Users className="h-4 w-4 mr-2" />
             Fornecedores ({suppliersCount})
           </Button>
-          <Button
-            variant="default"
-            className="bg-green-600 hover:bg-green-700"
-            onClick={() => setShowPurchaseDialog(true)}
-          >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Comprar Rápido
+          <Button variant="outline">
+            <Package className="h-4 w-4 mr-2" />
+            Lotes
           </Button>
-          <Badge variant={status.color as any} className="text-sm px-3 py-1">
+          <Button variant="default" className="bg-green-600 hover:bg-green-700">
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            Comprar
+          </Button>
+          <Badge variant="destructive" className="text-sm px-3 py-1">
             <StatusIcon className="h-4 w-4 mr-1" />
-            {status.label}
+            Crítico
           </Badge>
         </div>
       </div>
@@ -152,13 +187,7 @@ export default function MateriaPrimaDetalhes() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{suppliersCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {suppliersCount === 0
-                ? "Nenhum cadastrado"
-                : suppliersCount === 1
-                  ? "1 opção disponível"
-                  : `${suppliersCount} opções disponíveis`}
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">Nenhum cadastrado</p>
           </CardContent>
         </Card>
 
@@ -169,9 +198,7 @@ export default function MateriaPrimaDetalhes() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{productsCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {productsCount === 0 ? "Não utilizado" : productsCount === 1 ? "1 produto" : `${productsCount} produtos`}
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">Não utilizado</p>
           </CardContent>
         </Card>
 
@@ -219,10 +246,8 @@ export default function MateriaPrimaDetalhes() {
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Valor em Estoque:</p>
-                <p className="text-lg font-semibold">
-                  {rawMaterial.unitCost ? `R$ ${(stockLevel * rawMaterial.unitCost).toFixed(2)}` : "-"}
-                </p>
+                <p className="text-sm text-muted-foreground">Lote Econômico:</p>
+                <p className="text-lg font-semibold">0 {rawMaterial.unit}</p>
               </div>
             </div>
 
@@ -254,13 +279,7 @@ export default function MateriaPrimaDetalhes() {
             <div>
               <p className="text-sm text-muted-foreground">Tipo:</p>
               <Badge variant="outline" className="mt-1">
-                {rawMaterial.type === "ingredient"
-                  ? "Ingrediente"
-                  : rawMaterial.type === "packaging"
-                    ? "Embalagem"
-                    : rawMaterial.type === "label"
-                      ? "Rótulo"
-                      : "Outro"}
+                Ingrediente
               </Badge>
             </div>
 
@@ -269,125 +288,19 @@ export default function MateriaPrimaDetalhes() {
               <p className="text-lg font-semibold mt-1">{rawMaterial.unit}</p>
             </div>
 
-            {rawMaterial.unitCost && (
-              <div>
-                <p className="text-sm text-muted-foreground">Custo Unitário:</p>
-                <p className="text-lg font-semibold mt-1">R$ {rawMaterial.unitCost.toFixed(2)}</p>
-              </div>
-            )}
+            <div>
+              <p className="text-sm text-muted-foreground">0</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-muted-foreground">Valor em Estoque:</p>
+              <p className="text-lg font-semibold mt-1">
+                {rawMaterial.unitCost ? `R$ ${(stockLevel * rawMaterial.unitCost).toFixed(2)}` : "-"}
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Produtos que Utilizam Esta Matéria-Prima */}
-      {products && products.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" />
-              Produtos que Utilizam Este Item
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {products.map((product: any) => (
-                <div
-                  key={product.id}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent cursor-pointer transition-colors"
-                  onClick={() => router.push(`/produtos/${product.id}`)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded">
-                      <Package className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{product.name}</p>
-                      <p className="text-sm text-muted-foreground">{product.code}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">
-                      {product.quantity} {rawMaterial.unit}
-                    </p>
-                    <p className="text-xs text-muted-foreground">por unidade</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Fornecedores Disponíveis */}
-      {suppliers && suppliers.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Fornecedores Disponíveis
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-medium">Fornecedor</th>
-                    <th className="text-left py-3 px-4 font-medium">Preço Unit.</th>
-                    <th className="text-left py-3 px-4 font-medium">Qtd. Mínima</th>
-                    <th className="text-left py-3 px-4 font-medium">Lead Time</th>
-                    <th className="text-left py-3 px-4 font-medium">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {suppliers.map((supplier: any) => (
-                    <tr key={supplier.id} className="border-b hover:bg-accent">
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="font-medium">{supplier.name}</p>
-                          <p className="text-sm text-muted-foreground">{supplier.contact}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <p className="font-medium">
-                          {supplier.unitPrice ? `R$ ${supplier.unitPrice.toFixed(2)}` : "-"}
-                        </p>
-                      </td>
-                      <td className="py-3 px-4">
-                        <p>
-                          {supplier.minQuantity || "-"} {rawMaterial.unit}
-                        </p>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span>{supplier.leadTimeDays || "-"} dias</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Button size="sm" variant="outline" onClick={() => router.push(`/fornecedores/${supplier.id}`)}>
-                          Ver Detalhes
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Dialogs */}
-      <TechnicalSheetDialog open={showTechnicalSheet} onOpenChange={setShowTechnicalSheet} product={rawMaterial} />
-      <SuppliersDialog
-        open={showSuppliersDialog}
-        onOpenChange={setShowSuppliersDialog}
-        rawMaterialId={rawMaterial.id}
-        rawMaterialName={rawMaterial.name}
-        rawMaterialUnit={rawMaterial.unit}
-      />
-      <QuickPurchaseOrderDialog open={showPurchaseDialog} onOpenChange={setShowPurchaseDialog} material={rawMaterial} />
     </div>
   )
 }

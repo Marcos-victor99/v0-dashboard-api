@@ -87,7 +87,12 @@ export default function Produtos() {
     return Math.min((currentStock / maxStock) * 100, 100)
   }
 
-  const categories = Array.from(new Set(products.map((p) => p.tipo).filter(Boolean)))
+  const categories = Array.from(new Set(products.map((p) => p.tipo).filter(Boolean))).sort((a, b) => {
+    // Extract the number prefix from each category (e.g., "01" from "01 - Matéria Prima")
+    const numA = Number.parseInt(a.match(/^\d+/)?.[0] || "999")
+    const numB = Number.parseInt(b.match(/^\d+/)?.[0] || "999")
+    return numA - numB
+  })
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -317,10 +318,12 @@ export default function MateriasPrimas() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="default">
-                    <PackageOpen className="h-4 w-4 mr-2" />
-                    Ver Detalhes
-                  </Button>
+                  <Link href={`/materias-primas/${material.id}`}>
+                    <Button variant="default" className="w-full">
+                      <PackageOpen className="h-4 w-4 mr-2" />
+                      Ver Detalhes
+                    </Button>
+                  </Link>
                   <Button variant="outline">
                     <FileText className="h-4 w-4 mr-2" />
                     Ficha Técnica
