@@ -51,6 +51,15 @@ export default function MateriaPrimaDetalhes() {
 
       console.log("[v0] Material data:", data)
 
+      let grupoData = null
+      if (data.grupo) {
+        try {
+          grupoData = typeof data.grupo === "string" ? JSON.parse(data.grupo) : data.grupo
+        } catch (e) {
+          console.error("[v0] Error parsing grupo:", e)
+        }
+      }
+
       setRawMaterial({
         id: data.id,
         code: data.identificacao || "",
@@ -62,6 +71,10 @@ export default function MateriaPrimaDetalhes() {
         unit: data.unidade_medida || "UN",
         unitCost: data.valor_custo || 0,
         status: data.status || "ativo",
+        ncm: data.ncm || "",
+        origem: data.origem || "",
+        grupo: grupoData?.descricao || "",
+        dataAtualizacao: data.data_ultima_atualizacao || "",
       })
     } catch (error) {
       console.error("[v0] Error fetching material details:", error)
@@ -148,9 +161,9 @@ export default function MateriaPrimaDetalhes() {
             <ShoppingCart className="h-4 w-4 mr-2" />
             Comprar
           </Button>
-          <Badge variant="destructive" className="text-sm px-3 py-1">
+          <Badge variant={status.color} className="text-sm px-3 py-1">
             <StatusIcon className="h-4 w-4 mr-1" />
-            Crítico
+            {status.label}
           </Badge>
         </div>
       </div>
@@ -279,7 +292,7 @@ export default function MateriaPrimaDetalhes() {
             <div>
               <p className="text-sm text-muted-foreground">Tipo:</p>
               <Badge variant="outline" className="mt-1">
-                Ingrediente
+                {rawMaterial.type}
               </Badge>
             </div>
 
@@ -288,9 +301,28 @@ export default function MateriaPrimaDetalhes() {
               <p className="text-lg font-semibold mt-1">{rawMaterial.unit}</p>
             </div>
 
-            <div>
-              <p className="text-sm text-muted-foreground">0</p>
-            </div>
+            {rawMaterial.ncm && (
+              <div>
+                <p className="text-sm text-muted-foreground">NCM:</p>
+                <p className="text-lg font-semibold mt-1">{rawMaterial.ncm}</p>
+              </div>
+            )}
+
+            {rawMaterial.origem && (
+              <div>
+                <p className="text-sm text-muted-foreground">Origem:</p>
+                <p className="text-lg font-semibold mt-1">
+                  {rawMaterial.origem === "0-NACIONAL" ? "Nacional" : rawMaterial.origem}
+                </p>
+              </div>
+            )}
+
+            {rawMaterial.grupo && (
+              <div>
+                <p className="text-sm text-muted-foreground">Grupo:</p>
+                <p className="text-lg font-semibold mt-1">{rawMaterial.grupo}</p>
+              </div>
+            )}
 
             <div>
               <p className="text-sm text-muted-foreground">Valor em Estoque:</p>
@@ -298,6 +330,21 @@ export default function MateriaPrimaDetalhes() {
                 {rawMaterial.unitCost ? `R$ ${(stockLevel * rawMaterial.unitCost).toFixed(2)}` : "-"}
               </p>
             </div>
+
+            {rawMaterial.dataAtualizacao && (
+              <div className="pt-4 border-t">
+                <p className="text-sm text-muted-foreground">Última Atualização:</p>
+                <p className="text-sm mt-1">
+                  {new Date(rawMaterial.dataAtualizacao).toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
