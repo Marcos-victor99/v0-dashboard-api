@@ -15,6 +15,7 @@ type Product = {
   identificacao: string
   descricao: string
   tipo: string
+  hasFichaTecnica: boolean
 }
 
 type RawMaterial = {
@@ -81,9 +82,37 @@ export default function SimuladorMRP() {
 
       if (error) {
         console.error("[v0] Error fetching products:", error)
-      } else {
-        setProducts(data || [])
+        setLoading(false)
+        return
       }
+
+      const productCodes = data?.map((p) => p.identificacao) || []
+      const { data: fichasTecnicas, error: fichasError } = await supabase
+        .from("ordens_producao")
+        .select("produto")
+        .in("produto", productCodes)
+
+      if (fichasError) {
+        console.error("[v0] Error fetching fichas técnicas:", fichasError)
+      }
+
+      const productsWithFichas = new Set(fichasTecnicas?.map((f: any) => f.produto) || [])
+
+      const productsWithFichaStatus = (data || []).map((p) => ({
+        ...p,
+        hasFichaTecnica: productsWithFichas.has(p.identificacao),
+      }))
+
+      console.log(
+        "[v0] Products with fichas técnicas:",
+        productsWithFichaStatus.filter((p) => p.hasFichaTecnica).length,
+      )
+      console.log(
+        "[v0] Products without fichas técnicas:",
+        productsWithFichaStatus.filter((p) => !p.hasFichaTecnica).length,
+      )
+
+      setProducts(productsWithFichaStatus)
       setLoading(false)
     }
 
@@ -318,7 +347,16 @@ export default function SimuladorMRP() {
                         .filter((p) => !plans.some((plan) => plan.product_id === p.id))
                         .map((product) => (
                           <SelectItem key={product.id} value={product.id.toString()}>
-                            {product.descricao} ({product.identificacao})
+                            <div className="flex items-center justify-between gap-2 w-full">
+                              <span>
+                                {product.descricao} ({product.identificacao})
+                              </span>
+                              {!product.hasFichaTecnica && (
+                                <Badge variant="warning" className="ml-2 text-xs">
+                                  Sem Ficha
+                                </Badge>
+                              )}
+                            </div>
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -361,7 +399,16 @@ export default function SimuladorMRP() {
                           const product = products.find((p) => p.id === plan.product_id)
                           return (
                             <TableRow key={plan.id}>
-                              <TableCell className="font-medium">{product?.descricao}</TableCell>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  <span>{product?.descricao}</span>
+                                  {product && !product.hasFichaTecnica && (
+                                    <Badge variant="warning" className="text-xs">
+                                      Sem Ficha Técnica
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
                               <TableCell className="text-right">
                                 <Input
                                   type="number"
