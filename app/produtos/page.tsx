@@ -308,31 +308,31 @@ export default function Produtos() {
             <div className="text-2xl font-bold">{totalProducts}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-green-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Normal</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-gray-600" />
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{normalStock}</div>
+            <div className="text-2xl font-bold text-green-600">{normalStock}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-yellow-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Baixo</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-gray-600" />
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{lowStock}</div>
+            <div className="text-2xl font-bold text-yellow-600">{lowStock}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-red-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Estoque Crítico</CardTitle>
-            <AlertCircle className="h-4 w-4 text-gray-600" />
+            <AlertCircle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{criticalStock}</div>
+            <div className="text-2xl font-bold text-red-600">{criticalStock}</div>
           </CardContent>
         </Card>
       </div>
