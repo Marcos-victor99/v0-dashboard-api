@@ -28,6 +28,7 @@ const navigation = [
   { name: "Produtos", href: "/produtos", icon: Package },
   { name: "Matérias-Primas", href: "/materias-primas", icon: ShoppingCart },
   { name: "Fornecedores", href: "/fornecedores", icon: Users },
+  { name: "Fichas Técnicas", href: "/fichas-tecnicas", icon: FileText },
   { name: "Simulador MRP", href: "/simulador-mrp", icon: Calculator },
   { name: "Ordens de Produção", href: "/ordens-producao", icon: ClipboardList },
   {

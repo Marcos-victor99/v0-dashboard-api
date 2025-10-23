@@ -32,10 +32,15 @@ interface RawMaterial {
   current_stock: number
   min_stock: number
   reorder_point: number
+  economic_lot: number
   unit: string
   unit_cost: number
   status: string
   lotes_count?: number
+  grupo: { id: number; descricao: string } | null
+  ncm: string | null
+  origem: string | null
+  localizacao: string | null
 }
 
 interface Lote {
@@ -112,7 +117,9 @@ export default function MateriasPrimas() {
       while (true) {
         let query = supabase
           .from("produtos")
-          .select("*")
+          .select(
+            "id, identificacao, descricao, tipo, status, unidade_medida, valor_custo, qtde_minima, qtde_seguranca, lote_minimo_compra, grupo, ncm, origem, localizacao",
+          )
           .eq("tipo", "01 - Matéria Prima")
           .range(start, start + batchSize - 1)
           .order("descricao")
@@ -171,18 +178,32 @@ export default function MateriasPrimas() {
         const productLotes = allLotes.filter((lote: any) => lote.produto_id === item.id)
         const estoqueAtual = productLotes.reduce((sum: number, lote: any) => sum + (lote.saldo || 0), 0)
 
+        let grupoObj = null
+        if (item.grupo) {
+          try {
+            grupoObj = typeof item.grupo === "string" ? JSON.parse(item.grupo) : item.grupo
+          } catch (e) {
+            console.warn("[v0] Error parsing grupo:", e)
+          }
+        }
+
         return {
           id: item.id,
           code: item.identificacao || "",
           name: item.descricao || "",
           type: item.tipo || "",
           current_stock: estoqueAtual,
-          min_stock: item.quantidade_minima || 0,
-          reorder_point: item.ponto_reposicao || item.quantidade_minima || 0,
+          min_stock: item.qtde_minima || 0,
+          reorder_point: item.qtde_seguranca || 0,
+          economic_lot: item.lote_minimo_compra || 0,
           unit: item.unidade_medida || "UN",
           unit_cost: item.valor_custo || 0,
           status: item.status || "ativo",
           lotes_count: productLotes.length,
+          grupo: grupoObj,
+          ncm: item.ncm,
+          origem: item.origem,
+          localizacao: item.localizacao,
         }
       })
 
@@ -247,6 +268,13 @@ export default function MateriasPrimas() {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-"
     return new Date(dateString).toLocaleDateString("pt-BR")
+  }
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value)
   }
 
   if (loading) {
@@ -412,7 +440,7 @@ export default function MateriasPrimas() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                <div className="grid grid-cols-2 gap-2 text-center text-sm">
                   <div>
                     <p className="text-muted-foreground mb-1">Estoque Mínimo</p>
                     <p className="font-semibold">
@@ -421,9 +449,16 @@ export default function MateriasPrimas() {
                   </div>
                   <div>
                     <p className="text-muted-foreground mb-1">Ponto de Pedido</p>
-                    <p className="font-semibold">
+                    <p className="font-semibold text-blue-600">
                       {material.reorder_point} {material.unit}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Lote Econômico</p>
+                    <p className="font-semibold">
+                      {material.economic_lot} {material.unit}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Qtd. ideal</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground mb-1">Necessidade</p>
@@ -432,6 +467,44 @@ export default function MateriasPrimas() {
                     </p>
                   </div>
                 </div>
+
+                {isExpanded && (
+                  <div className="border-t pt-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-muted-foreground">Informações Cadastrais</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      {material.grupo && (
+                        <div className="col-span-2">
+                          <p className="text-xs text-muted-foreground mb-1">Grupo</p>
+                          <p className="font-medium">{material.grupo.descricao}</p>
+                        </div>
+                      )}
+                      {material.ncm && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">NCM</p>
+                          <p className="font-medium">{material.ncm}</p>
+                        </div>
+                      )}
+                      {material.origem && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Origem</p>
+                          <p className="font-medium">{material.origem}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Custo Unitário</p>
+                        <p className="font-medium text-green-600">
+                          {formatCurrency(material.unit_cost)}/{material.unit}
+                        </p>
+                      </div>
+                      {material.localizacao && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Localização</p>
+                          <p className="font-medium">{material.localizacao}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2">
                   <Link href={`/materias-primas/${material.id}`}>
