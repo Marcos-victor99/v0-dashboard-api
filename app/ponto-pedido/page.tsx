@@ -28,7 +28,7 @@ type RawMaterial = {
   reorder_point: number
   min_stock: number
   unit_cost: number
-  supplier_id: number
+  supplier_id: number | null
   supplier?: {
     id: number
     name: string
@@ -72,19 +72,86 @@ export default function PontoDePedido() {
 
   async function fetchMaterials() {
     try {
-      const { data, error } = await supabase
-        .from("beeoz_prod_raw_materials")
-        .select(
-          `
-          *,
-          supplier:beeoz_prod_suppliers(id, name, delivery_days, payment_terms)
-        `,
-        )
-        .order("current_stock", { ascending: true })
+      console.log("[v0] Fetching raw materials from produtos table...")
 
-      if (error) throw error
+      // Fetch raw materials (tipo = "01 - Matéria Prima")
+      const { data: produtosData, error: produtosError } = await supabase
+        .from("produtos")
+        .select("*")
+        .eq("tipo", "01 - Matéria Prima")
+        .order("descricao", { ascending: true })
 
-      const filteredData = data?.filter((item) => item.current_stock <= item.reorder_point) || []
+      if (produtosError) throw produtosError
+
+      console.log(`[v0] Fetched ${produtosData?.length || 0} raw materials`)
+
+      // Fetch all lotes to calculate current stock
+      const { data: lotesData, error: lotesError } = await supabase.from("lotes").select("produto_id, saldo")
+
+      if (lotesError) throw lotesError
+
+      // Calculate stock by product
+      const stockByProduct = lotesData?.reduce(
+        (acc, lote) => {
+          if (!acc[lote.produto_id]) {
+            acc[lote.produto_id] = 0
+          }
+          acc[lote.produto_id] += Number(lote.saldo) || 0
+          return acc
+        },
+        {} as Record<number, number>,
+      )
+
+      // Fetch suppliers
+      const { data: suppliersData, error: suppliersError } = await supabase.from("fornecedor").select("*")
+
+      if (suppliersError) throw suppliersError
+
+      // Map suppliers by ID
+      const suppliersById = suppliersData?.reduce(
+        (acc, supplier) => {
+          acc[supplier.id] = {
+            id: supplier.id,
+            name: supplier.nome || supplier.razao_social || "Sem Nome",
+            delivery_days: 15, // Default delivery days (not in schema)
+            payment_terms: 30, // Default payment terms (not in schema)
+          }
+          return acc
+        },
+        {} as Record<number, { id: number; name: string; delivery_days: number; payment_terms: number }>,
+      )
+
+      // Transform produtos data to RawMaterial format
+      const transformedMaterials: RawMaterial[] =
+        produtosData?.map((produto) => {
+          const currentStock = stockByProduct?.[produto.id] || 0
+          const reorderPoint = Number(produto.ponto_pedido) || Number(produto.estoque_minimo) || 0
+
+          return {
+            id: produto.id,
+            code: produto.identificacao || `PRD${String(produto.id).padStart(5, "0")}`,
+            name: produto.descricao || "Sem descrição",
+            type: produto.categoria || "Matéria Prima",
+            unit: produto.unidade || "UN",
+            current_stock: currentStock,
+            reorder_point: reorderPoint,
+            min_stock: Number(produto.estoque_minimo) || 0,
+            unit_cost: Number(produto.preco_custo) || 0,
+            supplier_id: produto.fornecedor_id,
+            supplier: produto.fornecedor_id ? suppliersById?.[produto.fornecedor_id] : undefined,
+          }
+        }) || []
+
+      // Filter materials that are at or below reorder point
+      const filteredData = transformedMaterials.filter((item) => item.current_stock <= item.reorder_point)
+
+      console.log(`[v0] Materials at reorder point: ${filteredData.length}`)
+      console.log(
+        `[v0] Sample material:`,
+        filteredData[0]
+          ? `${filteredData[0].code} - ${filteredData[0].name} (Stock: ${filteredData[0].current_stock}, Reorder: ${filteredData[0].reorder_point})`
+          : "None",
+      )
 
       setMaterials(filteredData)
     } catch (error) {
@@ -266,7 +333,7 @@ export default function PontoDePedido() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{formatCurrency(totalNecessary)}</div>
-              <p className="text-xs text-muted-foreground mt-1">23 itens necessários</p>
+              <p className="text-xs text-muted-foreground mt-1">{totalItems} itens necessários</p>
               <div className="mt-3 flex items-center gap-1 text-xs text-green-600">
                 <span>↗</span>
                 <span>Ticket médio: {formatCurrency(totalNecessary / Math.max(1, totalItems))}</span>
@@ -298,7 +365,7 @@ export default function PontoDePedido() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-orange-600">{highPriorityItems} itens</div>
-              <p className="text-xs text-muted-foreground mt-1">Abaixo de 50% do ponto</p>
+              <p className="text-xs text-muted-foreground mt-1">Abaixo de 30% do ponto</p>
               <div className="mt-3 flex items-center gap-1 text-xs text-orange-600">
                 <span>💰</span>
                 <span>Valor: {formatCurrency(0)}</span>

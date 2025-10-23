@@ -12,33 +12,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 type Product = {
   id: number
-  code: string
-  name: string
-  current_stock: number
+  identificacao: string
+  descricao: string
+  tipo: string
 }
 
 type RawMaterial = {
   id: number
-  code: string
-  name: string
+  identificacao: string
+  descricao: string
+  unidade_medida: string
   current_stock: number
-  unit: string
-  unit_cost: number
-  reorder_point: number
-}
-
-type BOMItem = {
-  product_id: number
-  raw_material_id: number
-  quantity: number
-  unit: string
-  raw_material: RawMaterial
-}
-
-type ProductionPlan = {
-  id: number
-  product_id: number | null
-  quantity: number
+  custo_unitario: number
+  ponto_pedido: number
 }
 
 type MaterialRequirement = {
@@ -51,6 +37,12 @@ type MaterialRequirement = {
   purchase: number
   unitCost: number
   totalCost: number
+}
+
+type ProductionPlan = {
+  id: number
+  product_id: number | null
+  quantity: number
 }
 
 export default function SimuladorMRP() {
@@ -67,13 +59,28 @@ export default function SimuladorMRP() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       )
 
+      console.log("[v0] Fetching finished products from produtos table...")
+
       const { data, error } = await supabase
-        .from("beeoz_prod_products")
-        .select("id, code, name, current_stock")
-        .order("name", { ascending: true })
+        .from("produtos")
+        .select("id, identificacao, descricao, tipo")
+        .eq("tipo", "04 - Produto Acabado")
+        .or("descricao.ilike.%HONEY%,descricao.ilike.%Cacau%")
+        .not("descricao", "ilike", "%CAIXA%")
+        .not("descricao", "ilike", "%BERÇO%")
+        .not("descricao", "ilike", "%CLICHE%")
+        .order("descricao", { ascending: true })
+
+      console.log("[v0] Fetched manufactured products (HONEY/Cacau, excluding CAIXA/BERÇO/CLICHE):", data?.length || 0)
+      if (data && data.length > 0) {
+        console.log(
+          "[v0] Sample products:",
+          data.slice(0, 3).map((p) => p.descricao),
+        )
+      }
 
       if (error) {
-        console.error("Error fetching products:", error)
+        console.error("[v0] Error fetching products:", error)
       } else {
         setProducts(data || [])
       }
@@ -107,7 +114,6 @@ export default function SimuladorMRP() {
     )
 
     try {
-      // Filter out plans without product selection
       const validPlans = plans.filter((p) => p.product_id && p.quantity > 0)
 
       if (validPlans.length === 0) {
@@ -116,50 +122,132 @@ export default function SimuladorMRP() {
         return
       }
 
-      // Fetch BOM for all selected products
       const productIds = validPlans.map((p) => p.product_id)
-      const { data: bomData, error: bomError } = await supabase
-        .from("beeoz_prod_bom")
-        .select(
-          `
-          product_id,
-          raw_material_id,
-          quantity,
-          unit,
-          raw_material:beeoz_prod_raw_materials(id, code, name, current_stock, unit, unit_cost, reorder_point)
-        `,
-        )
-        .in("product_id", productIds)
 
-      if (bomError) {
-        console.error("Error fetching BOM:", bomError)
-        alert("Erro ao buscar ficha técnica dos produtos")
+      const { data: selectedProducts, error: productsError } = await supabase
+        .from("produtos")
+        .select("id, identificacao")
+        .in("id", productIds)
+
+      if (productsError) {
+        console.error("Error fetching product codes:", productsError)
+        alert("Erro ao buscar códigos dos produtos")
         setCalculating(false)
         return
       }
 
+      const productCodes = selectedProducts?.map((p) => p.identificacao) || []
+      const productCodeToIdMap = new Map(selectedProducts?.map((p) => [p.identificacao, p.id]) || [])
+
+      const { data: fichasTecnicas, error: fichasError } = await supabase
+        .from("ordens_producao")
+        .select("id, identificacao, produto")
+        .in("produto", productCodes)
+
+      if (fichasError) {
+        console.error("Error fetching fichas técnicas:", fichasError)
+        alert("Erro ao buscar fichas técnicas dos produtos")
+        setCalculating(false)
+        return
+      }
+
+      if (!fichasTecnicas || fichasTecnicas.length === 0) {
+        alert("Nenhuma ficha técnica encontrada para os produtos selecionados")
+        setCalculating(false)
+        return
+      }
+
+      const fichaIds = fichasTecnicas.map((f: any) => f.id)
+
+      // Get operations for these technical sheets
+      const { data: operacoes, error: operacoesError } = await supabase
+        .from("operacoes")
+        .select("operacao_id, ordem_id")
+        .in("ordem_id", fichaIds)
+
+      if (operacoesError) {
+        console.error("Error fetching operacoes:", operacoesError)
+        setCalculating(false)
+        return
+      }
+
+      const operacaoIds = (operacoes || []).map((op: any) => op.operacao_id)
+
+      // Get materials for these operations
+      const { data: materiais, error: materiaisError } = await supabase
+        .from("operacao_materiais")
+        .select("operacao_id, produto_id, qtde")
+        .in("operacao_id", operacaoIds)
+
+      if (materiaisError) {
+        console.error("Error fetching materials:", materiaisError)
+        setCalculating(false)
+        return
+      }
+
+      const materialIds = [...new Set((materiais || []).map((m: any) => m.produto_id))]
+      const { data: materiaisInfo, error: materiaisInfoError } = await supabase
+        .from("produtos")
+        .select("id, identificacao, descricao, unidade_medida, valor_custo")
+        .in("id", materialIds)
+
+      if (materiaisInfoError) {
+        console.error("Error fetching material info:", materiaisInfoError)
+      }
+
+      const materialInfoMap = new Map((materiaisInfo || []).map((m: any) => [m.id, m]))
+
+      // Get current stock from lotes
+      const { data: lotes, error: lotesError } = await supabase
+        .from("lotes")
+        .select("produto_id, saldo")
+        .in("produto_id", materialIds)
+        .gt("saldo", 0)
+
+      const stockMap = new Map<number, number>()
+      if (lotes) {
+        lotes.forEach((lote: any) => {
+          const current = stockMap.get(lote.produto_id) || 0
+          stockMap.set(lote.produto_id, current + (lote.saldo || 0))
+        })
+      }
+
+      // Build material requirements map
       const materialMap = new Map<number, MaterialRequirement>()
 
       validPlans.forEach((plan) => {
-        const productBOM = (bomData || []).filter((bom: any) => bom.product_id === plan.product_id)
+        const product = selectedProducts?.find((p) => p.id === plan.product_id)
+        if (!product) return
 
-        productBOM.forEach((bomItem: any) => {
-          const material = bomItem.raw_material
-          const requiredQty = bomItem.quantity * plan.quantity
+        const ficha = fichasTecnicas.find((f: any) => f.produto === product.identificacao)
+        if (!ficha) return
 
-          if (materialMap.has(material.id)) {
-            const existing = materialMap.get(material.id)!
+        // Find operations for this ficha
+        const fichaOperacoes = (operacoes || []).filter((op: any) => op.ordem_id === ficha.id)
+        const fichaOperacaoIds = fichaOperacoes.map((op: any) => op.operacao_id)
+
+        // Find materials for these operations
+        const fichaMateriais = (materiais || []).filter((m: any) => fichaOperacaoIds.includes(m.operacao_id))
+
+        fichaMateriais.forEach((mat: any) => {
+          const materialInfo = materialInfoMap.get(mat.produto_id)
+          if (!materialInfo) return
+
+          const requiredQty = mat.qtde * plan.quantity
+
+          if (materialMap.has(mat.produto_id)) {
+            const existing = materialMap.get(mat.produto_id)!
             existing.required += requiredQty
           } else {
-            materialMap.set(material.id, {
-              code: material.code,
-              name: material.name,
-              unit: material.unit || bomItem.unit,
+            materialMap.set(mat.produto_id, {
+              code: materialInfo.identificacao,
+              name: materialInfo.descricao,
+              unit: materialInfo.unidade_medida || "UN",
               required: requiredQty,
-              stock: material.current_stock || 0,
-              minPurchase: material.reorder_point || 0,
+              stock: stockMap.get(mat.produto_id) || 0,
+              minPurchase: 0,
               purchase: 0,
-              unitCost: material.unit_cost || 0,
+              unitCost: materialInfo.valor_custo || 0,
               totalCost: 0,
             })
           }
@@ -171,7 +259,6 @@ export default function SimuladorMRP() {
 
       materialMap.forEach((material) => {
         const needed = Math.max(0, material.required - material.stock)
-        // If minimum purchase quantity is set and needed > 0, use the minimum or needed (whichever is greater)
         const purchaseQty = needed > 0 && material.minPurchase > 0 ? Math.max(needed, material.minPurchase) : needed
 
         material.purchase = purchaseQty
@@ -180,7 +267,6 @@ export default function SimuladorMRP() {
         requirements.push(material)
       })
 
-      // Sort by total cost descending
       requirements.sort((a, b) => b.totalCost - a.totalCost)
 
       setResults({ requirements, totalCost })
@@ -206,7 +292,6 @@ export default function SimuladorMRP() {
         <p className="text-muted-foreground">Calcule as necessidades de matérias-primas para produção</p>
       </div>
 
-      {/* Production Plans */}
       <Card>
         <CardHeader>
           <CardDescription>Adicione os produtos que deseja produzir e suas quantidades</CardDescription>
@@ -233,7 +318,7 @@ export default function SimuladorMRP() {
                         .filter((p) => !plans.some((plan) => plan.product_id === p.id))
                         .map((product) => (
                           <SelectItem key={product.id} value={product.id.toString()}>
-                            {product.name} ({product.code})
+                            {product.descricao} ({product.identificacao})
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -276,7 +361,7 @@ export default function SimuladorMRP() {
                           const product = products.find((p) => p.id === plan.product_id)
                           return (
                             <TableRow key={plan.id}>
-                              <TableCell className="font-medium">{product?.name}</TableCell>
+                              <TableCell className="font-medium">{product?.descricao}</TableCell>
                               <TableCell className="text-right">
                                 <Input
                                   type="number"
@@ -376,7 +461,7 @@ export default function SimuladorMRP() {
                       <TableHead>Código</TableHead>
                       <TableHead>Matéria-Prima</TableHead>
                       <TableHead className="text-right">Demanda Específica</TableHead>
-                      <TableHead className="text-right">Compra Mínima</TableHead>
+                      <TableHead className="text-right">Estoque Atual</TableHead>
                       <TableHead className="text-right">A Comprar</TableHead>
                       <TableHead className="text-right">Custo</TableHead>
                       <TableHead>Status</TableHead>
@@ -391,7 +476,7 @@ export default function SimuladorMRP() {
                           {req.required.toFixed(2)} {req.unit}
                         </TableCell>
                         <TableCell className="text-right">
-                          {req.minPurchase > 0 ? `${req.minPurchase.toFixed(2)} ${req.unit}` : "-"}
+                          {req.stock.toFixed(2)} {req.unit}
                         </TableCell>
                         <TableCell className="text-right">
                           {req.purchase.toFixed(2)} {req.unit}
