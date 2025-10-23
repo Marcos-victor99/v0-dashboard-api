@@ -103,7 +103,7 @@ export default function PontoDePedido() {
       )
 
       // Fetch suppliers
-      const { data: suppliersData, error: suppliersError } = await supabase.from("fornecedor").select("*")
+      const { data: suppliersData, error: suppliersError } = await supabase.from("fornecedores").select("*")
 
       if (suppliersError) throw suppliersError
 

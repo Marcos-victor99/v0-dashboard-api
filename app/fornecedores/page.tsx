@@ -65,11 +65,11 @@ export default function Fornecedores() {
         let start = 0
         let hasMore = true
 
-        console.log("[v0] Starting to fetch suppliers from fornecedor table...")
+        console.log("[v0] Starting to fetch suppliers from fornecedores table...")
 
         while (hasMore) {
           const { data: suppliersBatch, error } = await supabase
-            .from("fornecedor")
+            .from("fornecedores")
             .select("*")
             .range(start, start + batchSize - 1)
             .order("razao_social", { ascending: true })
