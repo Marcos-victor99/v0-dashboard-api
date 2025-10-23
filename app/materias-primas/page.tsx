@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Progress } from "@/components/ui/progress"
 import {
   Search,
   Package,
@@ -21,6 +22,12 @@ import {
   PackageOpen,
   ChevronDown,
   ChevronUp,
+  Calendar,
+  MapPin,
+  Warehouse,
+  TrendingUp,
+  Clock,
+  BarChart3,
 } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
 
@@ -52,6 +59,7 @@ interface Lote {
   data_criacao: string
   data_validade: string | null
   deposito_id: number | null
+  deposito_descricao: string | null
   localizacao: string | null
 }
 
@@ -268,6 +276,80 @@ export default function MateriasPrimas() {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-"
     return new Date(dateString).toLocaleDateString("pt-BR")
+  }
+
+  const formatDateDetailed = (dateString: string | null) => {
+    if (!dateString) return "-"
+    const date = new Date(dateString)
+    return date.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    })
+  }
+
+  const calculateDaysUntilExpiry = (expiryDate: string | null) => {
+    if (!expiryDate) return null
+    const today = new Date()
+    const expiry = new Date(expiryDate)
+    const diffTime = expiry.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
+  const calculateLoteAge = (creationDate: string) => {
+    const today = new Date()
+    const creation = new Date(creationDate)
+    const diffTime = today.getTime() - creation.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
+  const formatDaysToHumanReadable = (days: number) => {
+    if (days < 30) {
+      return `${days} ${days === 1 ? "dia" : "dias"}`
+    }
+
+    if (days < 365) {
+      const months = Math.floor(days / 30)
+      const remainingDays = days % 30
+      if (remainingDays === 0) {
+        return `${months} ${months === 1 ? "mês" : "meses"}`
+      }
+      return `${months} ${months === 1 ? "mês" : "meses"} e ${remainingDays} ${remainingDays === 1 ? "dia" : "dias"}`
+    }
+
+    const years = Math.floor(days / 365)
+    const remainingDays = days % 365
+    const months = Math.floor(remainingDays / 30)
+
+    if (months === 0) {
+      return `${years} ${years === 1 ? "ano" : "anos"}`
+    }
+    return `${years} ${years === 1 ? "ano" : "anos"} e ${months} ${months === 1 ? "mês" : "meses"}`
+  }
+
+  const getExpiryStatus = (daysUntilExpiry: number | null) => {
+    if (daysUntilExpiry === null) return "no-expiry"
+    if (daysUntilExpiry < 0) return "expired"
+    if (daysUntilExpiry <= 30) return "expiring-soon"
+    if (daysUntilExpiry <= 90) return "near-expiry"
+    return "fresh"
+  }
+
+  const getExpiryBadge = (status: string) => {
+    switch (status) {
+      case "expired":
+        return <Badge variant="destructive">Vencido</Badge>
+      case "expiring-soon":
+        return <Badge variant="destructive">Vence em breve</Badge>
+      case "near-expiry":
+        return <Badge variant="warning">Próximo ao vencimento</Badge>
+      case "fresh":
+        return <Badge variant="success">Válido</Badge>
+      default:
+        return <Badge variant="secondary">Sem validade</Badge>
+    }
   }
 
   const formatCurrency = (value: number) => {
@@ -546,58 +628,335 @@ export default function MateriasPrimas() {
       )}
 
       <Dialog open={lotesDialogOpen} onOpenChange={setLotesDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Histórico de Lotes</DialogTitle>
-            <DialogDescription>
-              {selectedMaterial && (
-                <>
-                  {selectedMaterial.name} ({selectedMaterial.code})
-                </>
-              )}
-            </DialogDescription>
+        <DialogContent className="!w-[95vw] !h-[90vh] !max-w-[95vw] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Histórico de Lotes - Matéria-Prima</DialogTitle>
+            {selectedMaterial && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="font-semibold">{selectedMaterial.name}</span>
+                <Badge variant="outline">{selectedMaterial.code}</Badge>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-sm text-muted-foreground">
+                  {lotes.length} {lotes.length === 1 ? "lote" : "lotes"}
+                </span>
+              </div>
+            )}
           </DialogHeader>
 
           {loadingLotes ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="flex items-center justify-center py-12 flex-1">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Carregando lotes...</p>
+              </div>
             </div>
           ) : lotes.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhum lote encontrado para este produto.</p>
+            <div className="text-center py-12 flex-1">
+              <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum lote encontrado</h3>
+              <p className="text-muted-foreground">Este produto não possui lotes cadastrados.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Identificação</TableHead>
-                  <TableHead className="text-right">Quantidade</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
-                  <TableHead>Data Criação</TableHead>
-                  <TableHead>Validade</TableHead>
-                  <TableHead>Localização</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lotes.map((lote) => (
-                  <TableRow key={lote.id}>
-                    <TableCell className="font-medium">{lote.identificacao}</TableCell>
-                    <TableCell className="text-right">
-                      {lote.qtde} {selectedMaterial?.unit}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant={lote.saldo > 0 ? "success" : "secondary"}>
-                        {lote.saldo} {selectedMaterial?.unit}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDate(lote.data_criacao)}</TableCell>
-                    <TableCell>{formatDate(lote.data_validade)}</TableCell>
-                    <TableCell>{lote.localizacao || "-"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
+              <TabsList className="flex-shrink-0">
+                <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+                <TabsTrigger value="details">Detalhes dos Lotes</TabsTrigger>
+                <TabsTrigger value="analysis">Análise</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="flex-1 overflow-y-auto space-y-6 mt-4">
+                {/* Summary Cards */}
+                <div className="grid grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Total de Lotes</p>
+                          <p className="text-3xl font-bold mt-1">{lotes.length}</p>
+                        </div>
+                        <Package className="h-8 w-8 text-blue-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Estoque Total</p>
+                          <p className="text-3xl font-bold mt-1">
+                            {lotes.reduce((sum, l) => sum + l.saldo, 0).toFixed(2)}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">{selectedMaterial?.unit}</p>
+                        </div>
+                        <TrendingUp className="h-8 w-8 text-green-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Lotes Ativos</p>
+                          <p className="text-3xl font-bold mt-1">{lotes.filter((l) => l.saldo > 0).length}</p>
+                        </div>
+                        <CheckCircle2 className="h-8 w-8 text-green-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Idade Média</p>
+                          <p className="text-3xl font-bold mt-1">
+                            {formatDaysToHumanReadable(
+                              Math.round(
+                                lotes.reduce((sum, l) => sum + calculateLoteAge(l.data_criacao), 0) / lotes.length,
+                              ),
+                            )}
+                          </p>
+                        </div>
+                        <Clock className="h-8 w-8 text-orange-600" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Distribution by Warehouse */}
+                <Card>
+                  <CardContent className="pt-6">
+                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      <Warehouse className="h-5 w-5" />
+                      Distribuição por Depósito
+                    </h3>
+                    <div className="space-y-3">
+                      {Array.from(new Set(lotes.map((l) => l.deposito_descricao || "Sem depósito"))).map((deposito) => {
+                        const depositoLotes = lotes.filter((l) => (l.deposito_descricao || "Sem depósito") === deposito)
+                        const depositoSaldo = depositoLotes.reduce((sum, l) => sum + l.saldo, 0)
+                        const totalSaldo = lotes.reduce((sum, l) => sum + l.saldo, 0)
+                        const percentage = totalSaldo > 0 ? (depositoSaldo / totalSaldo) * 100 : 0
+
+                        return (
+                          <div key={deposito} className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium">{deposito}</span>
+                              <span className="text-muted-foreground">
+                                {depositoSaldo.toFixed(2)} {selectedMaterial?.unit} ({percentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <Progress value={percentage} className="h-2" />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="details" className="flex-1 overflow-y-auto mt-4">
+                <div className="grid gap-4">
+                  {lotes.map((lote) => {
+                    const daysUntilExpiry = calculateDaysUntilExpiry(lote.data_validade)
+                    const expiryStatus = getExpiryStatus(daysUntilExpiry)
+                    const loteAge = calculateLoteAge(lote.data_criacao)
+                    const utilizationPercent = lote.qtde > 0 ? ((lote.qtde - lote.saldo) / lote.qtde) * 100 : 0
+
+                    return (
+                      <Card key={lote.id} className={lote.saldo === 0 ? "opacity-60" : ""}>
+                        <CardContent className="pt-6">
+                          <div className="flex items-start justify-between mb-4">
+                            <div>
+                              <h4 className="font-semibold text-lg">{lote.identificacao}</h4>
+                              <p className="text-sm text-muted-foreground">Lote #{lote.id}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              {getExpiryBadge(expiryStatus)}
+                              {lote.saldo > 0 ? (
+                                <Badge variant="success">Ativo</Badge>
+                              ) : (
+                                <Badge variant="secondary">Esgotado</Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-6">
+                            {/* Stock Section */}
+                            <div className="space-y-3">
+                              <h5 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                                <Package className="h-4 w-4" />
+                                Estoque
+                              </h5>
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Saldo Atual</p>
+                                  <p className="text-2xl font-bold text-green-600">
+                                    {lote.saldo} {selectedMaterial?.unit}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Quantidade Produzida</p>
+                                  <p className="text-lg font-semibold">
+                                    {lote.qtde} {selectedMaterial?.unit}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground mb-1">Utilização</p>
+                                  <Progress value={utilizationPercent} className="h-2" />
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {utilizationPercent.toFixed(1)}% utilizado
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Dates Section */}
+                            <div className="space-y-3">
+                              <h5 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                Datas
+                              </h5>
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Data de Produção</p>
+                                  <p className="font-medium">{formatDateDetailed(lote.data_criacao)}</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {loteAge} {loteAge === 1 ? "dia" : "dias"} atrás
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Data de Validade</p>
+                                  <p className="font-medium">
+                                    {lote.data_validade ? formatDateDetailed(lote.data_validade) : "Sem validade"}
+                                  </p>
+                                  {daysUntilExpiry !== null && (
+                                    <p
+                                      className={`text-xs mt-1 ${
+                                        daysUntilExpiry < 0
+                                          ? "text-red-600"
+                                          : daysUntilExpiry <= 30
+                                            ? "text-orange-600"
+                                            : "text-green-600"
+                                      }`}
+                                    >
+                                      {daysUntilExpiry < 0
+                                        ? `Vencido há ${Math.abs(daysUntilExpiry)} dias`
+                                        : `${daysUntilExpiry} dias restantes`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Location Section */}
+                            <div className="space-y-3">
+                              <h5 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                                <MapPin className="h-4 w-4" />
+                                Localização
+                              </h5>
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Depósito</p>
+                                  <p className="font-medium">{lote.deposito_descricao || "-"}</p>
+                                  {lote.deposito_id && (
+                                    <p className="text-xs text-muted-foreground mt-1">ID: {lote.deposito_id}</p>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Localização Física</p>
+                                  <p className="font-medium">{lote.localizacao || "-"}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="analysis" className="flex-1 overflow-y-auto space-y-6 mt-4">
+                {/* Age Distribution */}
+                <Card>
+                  <CardContent className="pt-6">
+                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Distribuição por Idade
+                    </h3>
+                    <div className="space-y-3">
+                      {[
+                        { label: "0-30 dias", min: 0, max: 30, color: "bg-green-500" },
+                        { label: "31-90 dias", min: 31, max: 90, color: "bg-blue-500" },
+                        { label: "91-180 dias", min: 91, max: 180, color: "bg-yellow-500" },
+                        { label: "Mais de 180 dias", min: 181, max: Number.POSITIVE_INFINITY, color: "bg-red-500" },
+                      ].map((range) => {
+                        const count = lotes.filter((l) => {
+                          const age = calculateLoteAge(l.data_criacao)
+                          return age >= range.min && age <= range.max
+                        }).length
+                        const percentage = lotes.length > 0 ? (count / lotes.length) * 100 : 0
+
+                        return (
+                          <div key={range.label} className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium">{range.label}</span>
+                              <span className="text-muted-foreground">
+                                {count} {count === 1 ? "lote" : "lotes"} ({percentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-secondary rounded-full h-2">
+                              <div className={`${range.color} h-2 rounded-full`} style={{ width: `${percentage}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Expiry Status Distribution */}
+                <Card>
+                  <CardContent className="pt-6">
+                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5" />
+                      Status de Validade
+                    </h3>
+                    <div className="space-y-3">
+                      {[
+                        { label: "Vencidos", status: "expired", color: "bg-red-500" },
+                        { label: "Vencendo em breve (≤30 dias)", status: "expiring-soon", color: "bg-orange-500" },
+                        { label: "Próximo ao vencimento (≤90 dias)", status: "near-expiry", color: "bg-yellow-500" },
+                        { label: "Válidos", status: "fresh", color: "bg-green-500" },
+                        { label: "Sem validade", status: "no-expiry", color: "bg-gray-500" },
+                      ].map((item) => {
+                        const count = lotes.filter((l) => {
+                          const days = calculateDaysUntilExpiry(l.data_validade)
+                          return getExpiryStatus(days) === item.status
+                        }).length
+                        const percentage = lotes.length > 0 ? (count / lotes.length) * 100 : 0
+
+                        return (
+                          <div key={item.status} className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium">{item.label}</span>
+                              <span className="text-muted-foreground">
+                                {count} {count === 1 ? "lote" : "lotes"} ({percentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-secondary rounded-full h-2">
+                              <div className={`${item.color} h-2 rounded-full`} style={{ width: `${percentage}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>
