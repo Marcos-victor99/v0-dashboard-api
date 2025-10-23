@@ -162,7 +162,6 @@ export default function MateriasPrimas() {
         const { data: lotesBatch, error: lotesError } = await supabase
           .from("lotes")
           .select("*")
-          .gt("saldo", 0)
           .range(lotesStart, lotesStart + lotesBatchSize - 1)
           .order("data_criacao", { ascending: true })
 
@@ -181,6 +180,8 @@ export default function MateriasPrimas() {
       }
 
       console.log(`[v0] Total lotes fetched: ${allLotes.length}`)
+      console.log(`[v0] Active lotes (saldo > 0): ${allLotes.filter((l) => l.saldo > 0).length}`)
+      console.log(`[v0] Inactive lotes (saldo = 0): ${allLotes.filter((l) => l.saldo === 0).length}`)
 
       const materialsWithStock = allProducts.map((item: any) => {
         const productLotes = allLotes.filter((lote: any) => lote.produto_id === item.id)
@@ -513,7 +514,7 @@ export default function MateriasPrimas() {
                 <div className="text-center py-4">
                   <p className="text-sm text-muted-foreground mb-1">Estoque Atual:</p>
                   <p className="text-4xl font-bold">
-                    {material.current_stock} {material.unit}
+                    {material.current_stock.toFixed(2)} {material.unit}
                   </p>
                   {material.lotes_count !== undefined && material.lotes_count > 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
@@ -526,26 +527,26 @@ export default function MateriasPrimas() {
                   <div>
                     <p className="text-muted-foreground mb-1">Estoque Mínimo</p>
                     <p className="font-semibold">
-                      {material.min_stock} {material.unit}
+                      {material.min_stock.toFixed(2)} {material.unit}
                     </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground mb-1">Ponto de Pedido</p>
                     <p className="font-semibold text-blue-600">
-                      {material.reorder_point} {material.unit}
+                      {material.reorder_point.toFixed(2)} {material.unit}
                     </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground mb-1">Lote Econômico</p>
                     <p className="font-semibold">
-                      {material.economic_lot} {material.unit}
+                      {material.economic_lot.toFixed(2)} {material.unit}
                     </p>
                     <p className="text-xs text-muted-foreground">Qtd. ideal</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground mb-1">Necessidade</p>
                     <p className="font-semibold text-orange-600">
-                      {necessity} {material.unit}
+                      {necessity.toFixed(2)} {material.unit}
                     </p>
                   </div>
                 </div>
@@ -712,12 +713,17 @@ export default function MateriasPrimas() {
                         <div>
                           <p className="text-sm text-muted-foreground">Idade Média</p>
                           <p className="text-3xl font-bold mt-1">
-                            {formatDaysToHumanReadable(
-                              Math.round(
-                                lotes.reduce((sum, l) => sum + calculateLoteAge(l.data_criacao), 0) / lotes.length,
-                              ),
-                            )}
+                            {(() => {
+                              const activeLotes = lotes.filter((l) => l.saldo > 0)
+                              if (activeLotes.length === 0) return "N/A"
+                              const avgAge = Math.round(
+                                activeLotes.reduce((sum, l) => sum + calculateLoteAge(l.data_criacao), 0) /
+                                  activeLotes.length,
+                              )
+                              return formatDaysToHumanReadable(avgAge)
+                            })()}
                           </p>
+                          <p className="text-xs text-muted-foreground mt-1">dos lotes ativos</p>
                         </div>
                         <Clock className="h-8 w-8 text-orange-600" />
                       </div>
@@ -793,13 +799,13 @@ export default function MateriasPrimas() {
                                 <div>
                                   <p className="text-xs text-muted-foreground">Saldo Atual</p>
                                   <p className="text-2xl font-bold text-green-600">
-                                    {lote.saldo} {selectedMaterial?.unit}
+                                    {lote.saldo.toFixed(2)} {selectedMaterial?.unit}
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-muted-foreground">Quantidade Produzida</p>
                                   <p className="text-lg font-semibold">
-                                    {lote.qtde} {selectedMaterial?.unit}
+                                    {lote.qtde.toFixed(2)} {selectedMaterial?.unit}
                                   </p>
                                 </div>
                                 <div>
