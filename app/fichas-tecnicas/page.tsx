@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, FileText, Package, Settings, ChevronDown, ChevronUp } from "lucide-react"
+import { Search, FileText, Package, Settings, ChevronDown, ChevronUp, Factory } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
 
 interface FichaTecnica {
@@ -28,12 +28,20 @@ interface FichaTecnica {
 interface Operacao {
   operacao_id: string
   ordem_id: number
+  operacao_ref_id: number | null
   tempo_preparacao: number | null
   tempo_operacao: number | null
   tempo_total_otimista: number | null
   tempo_total_pessimista: number | null
   capacidade: number | null
   unidade: string | null
+  // From operacoes_definicoes
+  descricao: string | null
+  classificacao: string | null
+  grupo_maquinas_descricao: string | null
+  fase_produtiva_descricao: string | null
+  linha_producao_descricao: string | null
+  funcionario_nome: string | null
 }
 
 interface Material {
@@ -165,12 +173,14 @@ export default function FichasTecnicas() {
   async function fetchFichaDetails(fichaId: number) {
     setLoadingDetails(true)
     try {
+      // Fetch operacoes with operacao_ref_id
       const { data: operacoesData, error: operacoesError } = await supabase
         .from("operacoes")
         .select(
           `
           operacao_id,
           ordem_id,
+          operacao_ref_id,
           tempo_preparacao,
           tempo_operacao,
           tempo_total_otimista,
@@ -186,7 +196,48 @@ export default function FichasTecnicas() {
         return
       }
 
-      setOperacoes(operacoesData || [])
+      // Fetch operacoes_definicoes to get descriptions and related info
+      const operacaoRefIds = operacoesData?.map((op) => op.operacao_ref_id).filter(Boolean) || []
+
+      let operacoesDefData: any[] = []
+      if (operacaoRefIds.length > 0) {
+        const { data, error } = await supabase
+          .from("operacoes_definicoes")
+          .select(
+            `
+            id,
+            descricao,
+            classificacao,
+            grupo_maquinas_descricao,
+            fase_produtiva_descricao,
+            linha_producao_descricao,
+            funcionario_nome
+          `,
+          )
+          .in("id", operacaoRefIds)
+
+        if (error) {
+          console.error("[v0] Error fetching operacoes_definicoes:", error)
+        } else {
+          operacoesDefData = data || []
+        }
+      }
+
+      // Merge operacoes with operacoes_definicoes data
+      const enrichedOperacoes = operacoesData?.map((op) => {
+        const def = operacoesDefData.find((d) => d.id === op.operacao_ref_id)
+        return {
+          ...op,
+          descricao: def?.descricao || null,
+          classificacao: def?.classificacao || null,
+          grupo_maquinas_descricao: def?.grupo_maquinas_descricao || null,
+          fase_produtiva_descricao: def?.fase_produtiva_descricao || null,
+          linha_producao_descricao: def?.linha_producao_descricao || null,
+          funcionario_nome: def?.funcionario_nome || null,
+        }
+      })
+
+      setOperacoes(enrichedOperacoes || [])
 
       const operacaoIds = operacoesData?.map((op) => op.operacao_id) || []
 
@@ -462,8 +513,8 @@ export default function FichasTecnicas() {
       )}
 
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="!w-[98vw] !h-[95vh] !max-w-[98vw] flex flex-col overflow-hidden p-6">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>Detalhes da Ficha Técnica</DialogTitle>
             <DialogDescription>
               {selectedFicha && (
@@ -479,113 +530,153 @@ export default function FichasTecnicas() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           ) : (
-            <Tabs defaultValue="operacoes" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="operacoes">Operações ({operacoes.length})</TabsTrigger>
-                <TabsTrigger value="materiais">Materiais ({materiais.length})</TabsTrigger>
-                <TabsTrigger value="subprodutos">Subprodutos ({subprodutos.length})</TabsTrigger>
-              </TabsList>
+            <div className="flex-1 overflow-y-auto">
+              <Tabs defaultValue="operacoes" className="w-full h-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="operacoes">Operações ({operacoes.length})</TabsTrigger>
+                  <TabsTrigger value="materiais">Materiais ({materiais.length})</TabsTrigger>
+                  <TabsTrigger value="subprodutos">Subprodutos ({subprodutos.length})</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="operacoes" className="space-y-4">
-                {operacoes.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Settings className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">Nenhuma operação cadastrada.</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID Operação</TableHead>
-                        <TableHead>Unidade</TableHead>
-                        <TableHead className="text-right">Preparação</TableHead>
-                        <TableHead className="text-right">Operação</TableHead>
-                        <TableHead className="text-right">Capacidade</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {operacoes.map((op) => (
-                        <TableRow key={op.operacao_id}>
-                          <TableCell className="font-medium">{op.operacao_id}</TableCell>
-                          <TableCell>{op.unidade || "-"}</TableCell>
-                          <TableCell className="text-right">{formatTime(op.tempo_preparacao)}</TableCell>
-                          <TableCell className="text-right">{formatTime(op.tempo_operacao)}</TableCell>
-                          <TableCell className="text-right">{op.capacidade || "-"}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </TabsContent>
+                <TabsContent value="operacoes" className="space-y-4">
+                  {operacoes.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Settings className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">Nenhuma operação cadastrada.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>ID</TableHead>
+                            <TableHead>Descrição</TableHead>
+                            <TableHead>Linha/Fase</TableHead>
+                            <TableHead>Equipamento</TableHead>
+                            <TableHead className="text-right">Preparação</TableHead>
+                            <TableHead className="text-right">Operação</TableHead>
+                            <TableHead className="text-right">Capacidade</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {operacoes.map((op) => (
+                            <TableRow key={op.operacao_id}>
+                              <TableCell className="font-medium">{op.operacao_id}</TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">{op.descricao || "Sem descrição"}</p>
+                                  {op.classificacao && (
+                                    <Badge variant="outline" className="mt-1">
+                                      {op.classificacao}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">
+                                  {op.linha_producao_descricao && (
+                                    <div className="flex items-center gap-1">
+                                      <Factory className="h-3 w-3" />
+                                      <span>{op.linha_producao_descricao}</span>
+                                    </div>
+                                  )}
+                                  {op.fase_produtiva_descricao && (
+                                    <p className="text-muted-foreground">{op.fase_produtiva_descricao}</p>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">
+                                  {op.grupo_maquinas_descricao || "-"}
+                                  {op.funcionario_nome && (
+                                    <p className="text-muted-foreground text-xs">{op.funcionario_nome}</p>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">{formatTime(op.tempo_preparacao)}</TableCell>
+                              <TableCell className="text-right">{formatTime(op.tempo_operacao)}</TableCell>
+                              <TableCell className="text-right">
+                                {op.capacidade ? `${op.capacidade} ${op.unidade || ""}` : "-"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </TabsContent>
 
-              <TabsContent value="materiais" className="space-y-4">
-                {materiais.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">Nenhum material cadastrado.</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Operação</TableHead>
-                        <TableHead>Material</TableHead>
-                        <TableHead>Código</TableHead>
-                        <TableHead className="text-right">Quantidade</TableHead>
-                        <TableHead className="text-right">%</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {materiais.map((mat) => (
-                        <TableRow key={mat.material_id}>
-                          <TableCell>
-                            <Badge variant="outline">{mat.operacao_id}</Badge>
-                          </TableCell>
-                          <TableCell className="font-medium">{mat.produto_descricao || "Sem descrição"}</TableCell>
-                          <TableCell className="text-muted-foreground">{mat.produto_identificacao || "-"}</TableCell>
-                          <TableCell className="text-right">{mat.qtde}</TableCell>
-                          <TableCell className="text-right">{mat.porcentagem ? `${mat.porcentagem}%` : "-"}</TableCell>
+                <TabsContent value="materiais" className="space-y-4">
+                  {materiais.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">Nenhum material cadastrado.</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Operação</TableHead>
+                          <TableHead>Material</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead className="text-right">Quantidade</TableHead>
+                          <TableHead className="text-right">%</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </TabsContent>
+                      </TableHeader>
+                      <TableBody>
+                        {materiais.map((mat) => (
+                          <TableRow key={mat.material_id}>
+                            <TableCell>
+                              <Badge variant="outline">{mat.operacao_id}</Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">{mat.produto_descricao || "Sem descrição"}</TableCell>
+                            <TableCell className="text-muted-foreground">{mat.produto_identificacao || "-"}</TableCell>
+                            <TableCell className="text-right">{mat.qtde}</TableCell>
+                            <TableCell className="text-right">
+                              {mat.porcentagem ? `${mat.porcentagem}%` : "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
 
-              <TabsContent value="subprodutos" className="space-y-4">
-                {subprodutos.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">Nenhum subproduto cadastrado.</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Operação</TableHead>
-                        <TableHead>Subproduto</TableHead>
-                        <TableHead>Código</TableHead>
-                        <TableHead className="text-right">Quantidade</TableHead>
-                        <TableHead>Comportamento</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {subprodutos.map((sub) => (
-                        <TableRow key={sub.subproduto_id}>
-                          <TableCell>
-                            <Badge variant="outline">{sub.operacao_id}</Badge>
-                          </TableCell>
-                          <TableCell className="font-medium">{sub.produto_descricao || "Sem descrição"}</TableCell>
-                          <TableCell className="text-muted-foreground">{sub.produto_identificacao || "-"}</TableCell>
-                          <TableCell className="text-right">{sub.qtde}</TableCell>
-                          <TableCell>{sub.comportamento || "-"}</TableCell>
+                <TabsContent value="subprodutos" className="space-y-4">
+                  {subprodutos.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">Nenhum subproduto cadastrado.</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Operação</TableHead>
+                          <TableHead>Subproduto</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead className="text-right">Quantidade</TableHead>
+                          <TableHead>Comportamento</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </TabsContent>
-            </Tabs>
+                      </TableHeader>
+                      <TableBody>
+                        {subprodutos.map((sub) => (
+                          <TableRow key={sub.subproduto_id}>
+                            <TableCell>
+                              <Badge variant="outline">{sub.operacao_id}</Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">{sub.produto_descricao || "Sem descrição"}</TableCell>
+                            <TableCell className="text-muted-foreground">{sub.produto_identificacao || "-"}</TableCell>
+                            <TableCell className="text-right">{sub.qtde}</TableCell>
+                            <TableCell>{sub.comportamento || "-"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
           )}
         </DialogContent>
       </Dialog>
