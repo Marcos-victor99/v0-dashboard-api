@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import {
   Search,
   ClipboardList,
@@ -19,6 +21,8 @@ import {
   Calendar,
   FileText,
   Settings,
+  Filter,
+  X,
 } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
 
@@ -62,6 +66,14 @@ interface OrdemServico {
 
 export default function OrdensProducao() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [produtoFilter, setProdutoFilter] = useState<string>("all")
+  const [linhaFilter, setLinhaFilter] = useState<string>("all")
+  const [dateFromFilter, setDateFromFilter] = useState<string>("")
+  const [dateToFilter, setDateToFilter] = useState<string>("")
+  const [sortBy, setSortBy] = useState<string>("data_abertura_desc")
+  const [showFilters, setShowFilters] = useState(false)
+
   const [ordens, setOrdens] = useState<OrdemProducao[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOrdem, setSelectedOrdem] = useState<OrdemProducao | null>(null)
@@ -240,13 +252,76 @@ export default function OrdensProducao() {
     await fetchOrdemDetails(ordem.id)
   }
 
-  const filteredOrdens = ordens.filter((ordem) => {
-    const matchesSearch =
-      ordem.identificacao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ordem.produto_descricao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ordem.documento?.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesSearch
-  })
+  const clearFilters = () => {
+    setSearchTerm("")
+    setStatusFilter("all")
+    setProdutoFilter("all")
+    setLinhaFilter("all")
+    setDateFromFilter("")
+    setDateToFilter("")
+    setSortBy("data_abertura_desc")
+  }
+
+  const filteredOrdens = ordens
+    .filter((ordem) => {
+      // Search filter
+      const matchesSearch =
+        ordem.identificacao.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ordem.produto_descricao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ordem.documento?.toLowerCase().includes(searchTerm.toLowerCase())
+
+      // Status filter
+      const matchesStatus = statusFilter === "all" || ordem.status === statusFilter
+
+      // Product filter
+      const matchesProduto = produtoFilter === "all" || ordem.produto_identificacao === produtoFilter
+
+      // Production line filter
+      const matchesLinha = linhaFilter === "all" || String(ordem.linha_producao_id) === linhaFilter
+
+      // Date range filter
+      let matchesDateRange = true
+      if (dateFromFilter || dateToFilter) {
+        const ordemDate = new Date(ordem.data_abertura)
+        if (dateFromFilter) {
+          matchesDateRange = matchesDateRange && ordemDate >= new Date(dateFromFilter)
+        }
+        if (dateToFilter) {
+          matchesDateRange = matchesDateRange && ordemDate <= new Date(dateToFilter)
+        }
+      }
+
+      return matchesSearch && matchesStatus && matchesProduto && matchesLinha && matchesDateRange
+    })
+    .sort((a, b) => {
+      // Sort logic
+      switch (sortBy) {
+        case "data_abertura_desc":
+          return new Date(b.data_abertura).getTime() - new Date(a.data_abertura).getTime()
+        case "data_abertura_asc":
+          return new Date(a.data_abertura).getTime() - new Date(b.data_abertura).getTime()
+        case "progresso_desc":
+          return calculateProgress(b) - calculateProgress(a)
+        case "progresso_asc":
+          return calculateProgress(a) - calculateProgress(b)
+        case "qtde_desc":
+          return b.qtde - a.qtde
+        case "qtde_asc":
+          return a.qtde - b.qtde
+        default:
+          return 0
+      }
+    })
+
+  const uniqueProdutos = Array.from(new Set(ordens.map((o) => o.produto_identificacao).filter(Boolean))).sort()
+
+  const uniqueLinhas = Array.from(
+    new Map(
+      ordens
+        .filter((o) => o.linha_producao_id !== null)
+        .map((o) => [o.linha_producao_id, { id: o.linha_producao_id, desc: o.linha_producao_descricao }]),
+    ).values(),
+  ).sort((a, b) => (a.desc || "").localeCompare(b.desc || ""))
 
   const totalOrdens = ordens.length
   const ordensAbertas = ordens.filter((o) => o.status === "A PRODUZIR").length
@@ -303,6 +378,7 @@ export default function OrdensProducao() {
         </div>
       </div>
 
+      {/* ... existing metrics cards ... */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
@@ -353,19 +429,137 @@ export default function OrdensProducao() {
         </Card>
       </div>
 
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold">Filtros</h3>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por identificação, produto ou documento..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filtros
+            </h3>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+                {showFilters ? "Ocultar Filtros Avançados" : "Mostrar Filtros Avançados"}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X className="h-4 w-4 mr-1" />
+                Limpar
+              </Button>
+            </div>
+          </div>
 
+          {/* Basic search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por identificação, produto ou documento..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {/* Advanced filters */}
+          {showFilters && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="status-filter">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger id="status-filter">
+                    <SelectValue placeholder="Todos os status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="A PRODUZIR">A Produzir</SelectItem>
+                    <SelectItem value="EM_ANDAMENTO">Em Andamento</SelectItem>
+                    <SelectItem value="ENCERRADO">Encerrado</SelectItem>
+                    <SelectItem value="CONCLUÍDO">Concluído</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="produto-filter">Produto</Label>
+                <Select value={produtoFilter} onValueChange={setProdutoFilter}>
+                  <SelectTrigger id="produto-filter">
+                    <SelectValue placeholder="Todos os produtos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os produtos</SelectItem>
+                    {uniqueProdutos.map((produto) => (
+                      <SelectItem key={produto} value={produto!}>
+                        {produto}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="linha-filter">Linha de Produção</Label>
+                <Select value={linhaFilter} onValueChange={setLinhaFilter}>
+                  <SelectTrigger id="linha-filter">
+                    <SelectValue placeholder="Todas as linhas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as linhas</SelectItem>
+                    {uniqueLinhas.map((linha) => (
+                      <SelectItem key={linha.id} value={String(linha.id)}>
+                        {linha.desc || `Linha ${linha.id}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="date-from">Data de Abertura (De)</Label>
+                <Input
+                  id="date-from"
+                  type="date"
+                  value={dateFromFilter}
+                  onChange={(e) => setDateFromFilter(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="date-to">Data de Abertura (Até)</Label>
+                <Input
+                  id="date-to"
+                  type="date"
+                  value={dateToFilter}
+                  onChange={(e) => setDateToFilter(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sort-by">Ordenar por</Label>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger id="sort-by">
+                    <SelectValue placeholder="Ordenar por" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="data_abertura_desc">Data de Abertura (Mais recente)</SelectItem>
+                    <SelectItem value="data_abertura_asc">Data de Abertura (Mais antiga)</SelectItem>
+                    <SelectItem value="progresso_desc">Progresso (Maior)</SelectItem>
+                    <SelectItem value="progresso_asc">Progresso (Menor)</SelectItem>
+                    <SelectItem value="qtde_desc">Quantidade (Maior)</SelectItem>
+                    <SelectItem value="qtde_asc">Quantidade (Menor)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* Filter summary */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>
+              Mostrando {filteredOrdens.length} de {totalOrdens} ordens
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ... existing cards grid ... */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredOrdens.map((ordem) => {
           const progress = calculateProgress(ordem)
@@ -446,10 +640,11 @@ export default function OrdensProducao() {
         <div className="text-center py-12">
           <ClipboardList className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Nenhuma ordem de produção encontrada</h3>
-          <p className="text-muted-foreground">Tente ajustar os termos de busca.</p>
+          <p className="text-muted-foreground">Tente ajustar os termos de busca ou filtros.</p>
         </div>
       )}
 
+      {/* ... existing dialog ... */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
         <DialogContent className="!w-[98vw] !h-[95vh] !max-w-[98vw] flex flex-col overflow-hidden p-6">
           <DialogHeader className="flex-shrink-0">
