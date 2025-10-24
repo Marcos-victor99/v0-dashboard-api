@@ -35,6 +35,9 @@ const navigation = [
     name: "Suprimentos",
     icon: PackageOpen,
     submenu: [
+      { name: "Necessidades (MRP)", href: "/necessidades-materiais", icon: Calculator },
+      { name: "Cotações", href: "/cotacoes", icon: FileText },
+      { name: "Pedidos de Compra", href: "/pedidos-compra", icon: ShoppingCart },
       { name: "Compras", href: "/compras", icon: FileText },
       { name: "Análise de Compras", href: "/analise-compras", icon: TrendingUp },
       { name: "Ponto de Pedido", href: "/ponto-pedido", icon: ShoppingCart },
