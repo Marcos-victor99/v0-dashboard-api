@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -14,13 +13,13 @@ import {
   Users,
   Calculator,
   ClipboardList,
-  PackageOpen,
   FileText,
   TrendingUp,
   Menu,
   X,
   ChevronLeft,
   ChevronRight,
+  PackageOpen,
 } from "lucide-react"
 
 const navigation = [
@@ -29,13 +28,13 @@ const navigation = [
   { name: "Matérias-Primas", href: "/materias-primas", icon: ShoppingCart },
   { name: "Fornecedores", href: "/fornecedores", icon: Users },
   { name: "Fichas Técnicas", href: "/fichas-tecnicas", icon: FileText },
-  { name: "Simulador MRP", href: "/simulador-mrp", icon: Calculator },
   { name: "Ordens de Produção", href: "/ordens-producao", icon: ClipboardList },
   {
     name: "Suprimentos",
     icon: PackageOpen,
     submenu: [
       { name: "Necessidades (MRP)", href: "/necessidades-materiais", icon: Calculator },
+      { name: "Simulador MRP", href: "/simulador-mrp", icon: Calculator },
       { name: "Cotações", href: "/cotacoes", icon: FileText },
       { name: "Pedidos de Compra", href: "/pedidos-compra", icon: ShoppingCart },
       { name: "Compras", href: "/compras", icon: FileText },
