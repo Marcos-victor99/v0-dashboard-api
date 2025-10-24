@@ -1,34 +1,33 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Trash2, Calculator, DollarSign, TrendingUp, Package2 } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Calculator, Loader2, Package, ShoppingCart, Store, TrendingUp, AlertTriangle } from "lucide-react"
 
-type Product = {
+// ===== TIPOS E INTERFACES =====
+
+interface Product {
   id: number
   identificacao: string
   descricao: string
   tipo: string
-  hasFichaTecnica: boolean
+  hasFichaTecnica?: boolean
 }
 
-type RawMaterial = {
+interface ProductionPlan {
   id: number
-  identificacao: string
-  descricao: string
-  unidade_medida: string
-  current_stock: number
-  custo_unitario: number
-  ponto_pedido: number
+  product_id: number | null
+  quantity: number
 }
 
-type MaterialRequirement = {
+interface MaterialRequirement {
   code: string
   name: string
   unit: string
@@ -38,275 +37,354 @@ type MaterialRequirement = {
   purchase: number
   unitCost: number
   totalCost: number
+  suppliers: Supplier[]
 }
 
-type ProductionPlan = {
-  id: number
-  product_id: number | null
-  quantity: number
+interface Supplier {
+  codigo_fornecedor: string
+  nome_fornecedor: string
+  cnpj_cpf: string | null
+  email: string | null
+  telefone: string | null
 }
 
-export default function SimuladorMRP() {
-  const [plans, setPlans] = useState<ProductionPlan[]>([{ id: 1, product_id: null, quantity: 100 }])
+interface MRPResult {
+  requirements: MaterialRequirement[]
+  totalCost: number
+  scenarios: {
+    exact: number
+    minimum: number
+    consolidated: number
+  }
+}
+
+// ===== COMPONENTE PRINCIPAL =====
+
+export default function SimuladorMRPPage() {
   const [products, setProducts] = useState<Product[]>([])
-  const [results, setResults] = useState<{ requirements: MaterialRequirement[]; totalCost: number } | null>(null)
+  const [plans, setPlans] = useState<ProductionPlan[]>([{ id: 1, product_id: null, quantity: 100 }])
+  const [results, setResults] = useState<MRPResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [calculating, setCalculating] = useState(false)
 
+  // ===== CARREGAR PRODUTOS DISPONÍVEIS =====
   useEffect(() => {
-    const fetchProducts = async () => {
+    const loadProducts = async () => {
+      console.log("[v0] Carregando produtos acabados...")
       const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       )
 
-      console.log("[v0] Fetching finished products from produtos table...")
+      try {
+        // Buscar produtos acabados com filtros
+        const { data: productsData, error: productsError } = await supabase
+          .from("produtos")
+          .select("id, identificacao, descricao, tipo")
+          .eq("tipo", "04 - Produto Acabado")
+          .or("descricao.ilike.%HONEY%,descricao.ilike.%Cacau%")
+          .not("descricao", "ilike", "%CAIXA%")
+          .not("descricao", "ilike", "%BERÇO%")
+          .not("descricao", "ilike", "%CLICHE%")
+          .order("descricao", { ascending: true })
 
-      const { data, error } = await supabase
-        .from("produtos")
-        .select("id, identificacao, descricao, tipo")
-        .eq("tipo", "04 - Produto Acabado")
-        .or("descricao.ilike.%HONEY%,descricao.ilike.%Cacau%")
-        .not("descricao", "ilike", "%CAIXA%")
-        .not("descricao", "ilike", "%BERÇO%")
-        .not("descricao", "ilike", "%CLICHE%")
-        .order("descricao", { ascending: true })
+        if (productsError) throw productsError
 
-      console.log("[v0] Fetched manufactured products (HONEY/Cacau, excluding CAIXA/BERÇO/CLICHE):", data?.length || 0)
-      if (data && data.length > 0) {
-        console.log(
-          "[v0] Sample products:",
-          data.slice(0, 3).map((p) => p.descricao),
-        )
-      }
+        // Verificar quais produtos têm ficha técnica
+        const productCodes = productsData?.map((p) => p.identificacao) || []
+        const { data: fichasData } = await supabase
+          .from("ordens_producao")
+          .select("produto")
+          .in("produto", productCodes)
 
-      if (error) {
-        console.error("[v0] Error fetching products:", error)
+        const productsWithFichas = new Set(fichasData?.map((f) => f.produto) || [])
+
+        const productsWithStatus = (productsData || []).map((p) => ({
+          ...p,
+          hasFichaTecnica: productsWithFichas.has(p.identificacao),
+        }))
+
+        setProducts(productsWithStatus)
+        console.log("[v0] Produtos carregados:", productsWithStatus.length)
+      } catch (error) {
+        console.error("[v0] Erro ao carregar produtos:", error)
+      } finally {
         setLoading(false)
-        return
       }
-
-      const productCodes = data?.map((p) => p.identificacao) || []
-      const { data: fichasTecnicas, error: fichasError } = await supabase
-        .from("ordens_producao")
-        .select("produto")
-        .in("produto", productCodes)
-
-      if (fichasError) {
-        console.error("[v0] Error fetching fichas técnicas:", fichasError)
-      }
-
-      const productsWithFichas = new Set(fichasTecnicas?.map((f: any) => f.produto) || [])
-
-      const productsWithFichaStatus = (data || []).map((p) => ({
-        ...p,
-        hasFichaTecnica: productsWithFichas.has(p.identificacao),
-      }))
-
-      console.log(
-        "[v0] Products with fichas técnicas:",
-        productsWithFichaStatus.filter((p) => p.hasFichaTecnica).length,
-      )
-      console.log(
-        "[v0] Products without fichas técnicas:",
-        productsWithFichaStatus.filter((p) => !p.hasFichaTecnica).length,
-      )
-
-      setProducts(productsWithFichaStatus)
-      setLoading(false)
     }
 
-    fetchProducts()
+    loadProducts()
   }, [])
 
-  const addPlan = () => {
-    setPlans([...plans, { id: Date.now(), product_id: null, quantity: 0 }])
+  // ===== BUSCAR FORNECEDORES DE UM MATERIAL =====
+  const fetchMaterialSuppliers = async (supabase: any, materialIdentificacao: string): Promise<Supplier[]> => {
+    try {
+      // 1. Buscar codigo_produto na omie_produto
+      const { data: omieProduct, error: omieError } = await supabase
+        .from("omie_produto")
+        .select("codigo_produto")
+        .eq("codigo", materialIdentificacao)
+        .maybeSingle()
+
+      if (omieError || !omieProduct) {
+        return []
+      }
+
+      // 2. Buscar fornecedores
+      const { data: supplierProducts, error: supplierError } = await supabase
+        .from("omie_fornecedor_produto")
+        .select(`
+          codigo_fornecedor,
+          omie_fornecedor (
+            codigo_fornecedor,
+            nome_fornecedor,
+            cnpj_cpf,
+            email,
+            telefone
+          )
+        `)
+        .eq("n_cod_prod", omieProduct.codigo_produto)
+
+      if (supplierError) {
+        return []
+      }
+
+      const suppliers: Supplier[] = (supplierProducts || [])
+        .filter((sp: any) => sp.omie_fornecedor)
+        .map((sp: any) => ({
+          codigo_fornecedor: sp.omie_fornecedor.codigo_fornecedor,
+          nome_fornecedor: sp.omie_fornecedor.nome_fornecedor,
+          cnpj_cpf: sp.omie_fornecedor.cnpj_cpf,
+          email: sp.omie_fornecedor.email,
+          telefone: sp.omie_fornecedor.telefone,
+        }))
+
+      return suppliers
+    } catch (error) {
+      console.error("[v0] Erro ao buscar fornecedores:", error)
+      return []
+    }
   }
 
-  const removePlan = (id: number) => {
-    setPlans(plans.filter((p) => p.id !== id))
-  }
-
-  const updatePlanProduct = (id: number, productId: string) => {
-    setPlans(plans.map((p) => (p.id === id ? { ...p, product_id: Number.parseInt(productId) } : p)))
-  }
-
-  const updatePlanQuantity = (id: number, quantity: number) => {
-    setPlans(plans.map((p) => (p.id === id ? { ...p, quantity } : p)))
-  }
-
+  // ===== CALCULAR MRP =====
   const calculateMRP = async () => {
+    console.log("[v0] Iniciando cálculo MRP...")
     setCalculating(true)
+    setResults(null)
+
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     )
 
     try {
+      // Validar planos
       const validPlans = plans.filter((p) => p.product_id && p.quantity > 0)
-
       if (validPlans.length === 0) {
-        alert("Por favor, selecione pelo menos um produto com quantidade válida")
-        setCalculating(false)
+        alert("Selecione pelo menos um produto com quantidade válida")
         return
       }
 
-      const productIds = validPlans.map((p) => p.product_id)
+      console.log("[v0] Planos válidos:", validPlans.length)
 
-      const { data: selectedProducts, error: productsError } = await supabase
-        .from("produtos")
-        .select("id, identificacao")
-        .in("id", productIds)
+      // Mapas para consolidação
+      const materialMap = new Map<number, MaterialRequirement>()
+      const productCodeToIdMap = new Map<string, number>()
 
-      if (productsError) {
-        console.error("Error fetching product codes:", productsError)
-        alert("Erro ao buscar códigos dos produtos")
-        setCalculating(false)
-        return
-      }
+      // Criar mapa de produtos
+      products.forEach((p) => {
+        productCodeToIdMap.set(p.identificacao, p.id)
+      })
 
-      const productCodes = selectedProducts?.map((p) => p.identificacao) || []
-      const productCodeToIdMap = new Map(selectedProducts?.map((p) => [p.identificacao, p.id]) || [])
+      // ETAPA 1: Buscar fichas técnicas
+      const productIds = validPlans.map((p) => p.product_id!)
+      const { data: productsInfo } = await supabase.from("produtos").select("id, identificacao").in("id", productIds)
 
-      const { data: fichasTecnicas, error: fichasError } = await supabase
+      const productCodes = productsInfo?.map((p) => p.identificacao) || []
+
+      const { data: fichas, error: fichasError } = await supabase
         .from("ordens_producao")
         .select("id, identificacao, produto")
         .in("produto", productCodes)
 
-      if (fichasError) {
-        console.error("Error fetching fichas técnicas:", fichasError)
-        alert("Erro ao buscar fichas técnicas dos produtos")
-        setCalculating(false)
-        return
-      }
-
-      if (!fichasTecnicas || fichasTecnicas.length === 0) {
+      if (fichasError) throw fichasError
+      if (!fichas || fichas.length === 0) {
         alert("Nenhuma ficha técnica encontrada para os produtos selecionados")
-        setCalculating(false)
         return
       }
 
-      const fichaIds = fichasTecnicas.map((f: any) => f.id)
+      console.log("[v0] Fichas técnicas encontradas:", fichas.length)
 
-      // Get operations for these technical sheets
+      // ETAPA 2: Buscar operações
+      const fichaIds = fichas.map((f) => f.id)
       const { data: operacoes, error: operacoesError } = await supabase
         .from("operacoes")
         .select("operacao_id, ordem_id")
         .in("ordem_id", fichaIds)
 
-      if (operacoesError) {
-        console.error("Error fetching operacoes:", operacoesError)
-        setCalculating(false)
-        return
-      }
+      if (operacoesError) throw operacoesError
 
-      const operacaoIds = (operacoes || []).map((op: any) => op.operacao_id)
+      console.log("[v0] Operações encontradas:", operacoes?.length || 0)
 
-      // Get materials for these operations
+      // ETAPA 3: Buscar materiais das operações
+      const operacaoIds = operacoes?.map((o) => o.operacao_id) || []
       const { data: materiais, error: materiaisError } = await supabase
         .from("operacao_materiais")
         .select("operacao_id, produto_id, qtde")
         .in("operacao_id", operacaoIds)
 
-      if (materiaisError) {
-        console.error("Error fetching materials:", materiaisError)
-        setCalculating(false)
-        return
+      if (materiaisError) throw materiaisError
+
+      console.log("[v0] Materiais encontrados:", materiais?.length || 0)
+
+      // Criar mapa de operação -> ordem
+      const operacaoToOrdemMap = new Map<number, number>()
+      operacoes?.forEach((op) => {
+        operacaoToOrdemMap.set(op.operacao_id, op.ordem_id)
+      })
+
+      // Criar mapa de ordem -> produto
+      const ordemToProdutoMap = new Map<number, string>()
+      fichas.forEach((f) => {
+        ordemToProdutoMap.set(f.id, f.produto)
+      })
+
+      // ETAPA 4: Calcular quantidades necessárias
+      for (const plan of validPlans) {
+        const productInfo = productsInfo?.find((p) => p.id === plan.product_id)
+        if (!productInfo) continue
+
+        const ficha = fichas.find((f) => f.produto === productInfo.identificacao)
+        if (!ficha) continue
+
+        const operacoesDaFicha = operacoes?.filter((o) => o.ordem_id === ficha.id) || []
+
+        for (const operacao of operacoesDaFicha) {
+          const materiaisDaOperacao = materiais?.filter((m) => m.operacao_id === operacao.operacao_id) || []
+
+          for (const material of materiaisDaOperacao) {
+            const quantidadeNecessaria = material.qtde * plan.quantity
+
+            if (materialMap.has(material.produto_id)) {
+              const existing = materialMap.get(material.produto_id)!
+              existing.required += quantidadeNecessaria
+            } else {
+              materialMap.set(material.produto_id, {
+                code: "",
+                name: "",
+                unit: "UN",
+                required: quantidadeNecessaria,
+                stock: 0,
+                minPurchase: 0,
+                purchase: 0,
+                unitCost: 0,
+                totalCost: 0,
+                suppliers: [],
+              })
+            }
+          }
+        }
       }
 
-      const materialIds = [...new Set((materiais || []).map((m: any) => m.produto_id))]
+      console.log("[v0] Materiais consolidados:", materialMap.size)
+
+      // ETAPA 5: Buscar informações dos materiais
+      const materialIds = Array.from(materialMap.keys())
       const { data: materiaisInfo, error: materiaisInfoError } = await supabase
         .from("produtos")
         .select("id, identificacao, descricao, unidade_medida, valor_custo")
         .in("id", materialIds)
 
-      if (materiaisInfoError) {
-        console.error("Error fetching material info:", materiaisInfoError)
-      }
+      if (materiaisInfoError) throw materiaisInfoError
 
-      const materialInfoMap = new Map((materiaisInfo || []).map((m: any) => [m.id, m]))
+      // Atualizar informações dos materiais
+      materiaisInfo?.forEach((info) => {
+        const material = materialMap.get(info.id)
+        if (material) {
+          material.code = info.identificacao
+          material.name = info.descricao
+          material.unit = info.unidade_medida || "UN"
+          material.unitCost = info.valor_custo || 0
+        }
+      })
 
-      // Get current stock from lotes
+      // ETAPA 6: Buscar estoque
       const { data: lotes, error: lotesError } = await supabase
         .from("lotes")
         .select("produto_id, saldo")
         .in("produto_id", materialIds)
         .gt("saldo", 0)
 
+      if (lotesError) throw lotesError
+
+      // Consolidar estoque
       const stockMap = new Map<number, number>()
-      if (lotes) {
-        lotes.forEach((lote: any) => {
-          const current = stockMap.get(lote.produto_id) || 0
-          stockMap.set(lote.produto_id, current + (lote.saldo || 0))
-        })
+      lotes?.forEach((lote) => {
+        const current = stockMap.get(lote.produto_id) || 0
+        stockMap.set(lote.produto_id, current + lote.saldo)
+      })
+
+      // ETAPA 7: Calcular necessidades líquidas e buscar fornecedores
+      let totalCost = 0
+      const requirements: MaterialRequirement[] = []
+
+      console.log("[v0] Buscando fornecedores...")
+      for (const [materialId, material] of materialMap.entries()) {
+        material.stock = stockMap.get(materialId) || 0
+        const needed = Math.max(0, material.required - material.stock)
+        material.purchase = needed
+        material.totalCost = needed * material.unitCost
+        totalCost += material.totalCost
+
+        // Buscar fornecedores se precisa comprar
+        if (material.purchase > 0 && material.code) {
+          const suppliers = await fetchMaterialSuppliers(supabase, material.code)
+          material.suppliers = suppliers
+          console.log(`[v0] Material ${material.code}: ${suppliers.length} fornecedores`)
+        }
+
+        requirements.push(material)
       }
 
-      // Build material requirements map
-      const materialMap = new Map<number, MaterialRequirement>()
-
-      validPlans.forEach((plan) => {
-        const product = selectedProducts?.find((p) => p.id === plan.product_id)
-        if (!product) return
-
-        const ficha = fichasTecnicas.find((f: any) => f.produto === product.identificacao)
-        if (!ficha) return
-
-        // Find operations for this ficha
-        const fichaOperacoes = (operacoes || []).filter((op: any) => op.ordem_id === ficha.id)
-        const fichaOperacaoIds = fichaOperacoes.map((op: any) => op.operacao_id)
-
-        // Find materials for these operations
-        const fichaMateriais = (materiais || []).filter((m: any) => fichaOperacaoIds.includes(m.operacao_id))
-
-        fichaMateriais.forEach((mat: any) => {
-          const materialInfo = materialInfoMap.get(mat.produto_id)
-          if (!materialInfo) return
-
-          const requiredQty = mat.qtde * plan.quantity
-
-          if (materialMap.has(mat.produto_id)) {
-            const existing = materialMap.get(mat.produto_id)!
-            existing.required += requiredQty
-          } else {
-            materialMap.set(mat.produto_id, {
-              code: materialInfo.identificacao,
-              name: materialInfo.descricao,
-              unit: materialInfo.unidade_medida || "UN",
-              required: requiredQty,
-              stock: stockMap.get(mat.produto_id) || 0,
-              minPurchase: 0,
-              purchase: 0,
-              unitCost: materialInfo.valor_custo || 0,
-              totalCost: 0,
-            })
-          }
-        })
-      })
-
-      const requirements: MaterialRequirement[] = []
-      let totalCost = 0
-
-      materialMap.forEach((material) => {
-        const needed = Math.max(0, material.required - material.stock)
-        const purchaseQty = needed > 0 && material.minPurchase > 0 ? Math.max(needed, material.minPurchase) : needed
-
-        material.purchase = purchaseQty
-        material.totalCost = purchaseQty * material.unitCost
-        totalCost += material.totalCost
-        requirements.push(material)
-      })
-
+      // Ordenar por custo total (maior primeiro)
       requirements.sort((a, b) => b.totalCost - a.totalCost)
 
-      setResults({ requirements, totalCost })
+      // Calcular cenários
+      const scenarios = {
+        exact: totalCost,
+        minimum: totalCost * 0.85, // Simulação: 15% de desconto
+        consolidated: totalCost * 0.9, // Simulação: 10% de desconto
+      }
+
+      setResults({
+        requirements,
+        totalCost,
+        scenarios,
+      })
+
+      console.log("[v0] Cálculo MRP concluído")
     } catch (error) {
-      console.error("Error calculating MRP:", error)
-      alert("Erro ao calcular necessidades")
+      console.error("[v0] Erro ao calcular MRP:", error)
+      alert("Erro ao calcular necessidades. Verifique o console.")
     } finally {
       setCalculating(false)
     }
   }
 
+  // ===== FUNÇÕES DE MANIPULAÇÃO =====
+  const addPlan = () => {
+    setPlans([...plans, { id: Date.now(), product_id: null, quantity: 100 }])
+  }
+
+  const removePlan = (id: number) => {
+    setPlans(plans.filter((p) => p.id !== id))
+  }
+
+  const updatePlan = (id: number, field: "product_id" | "quantity", value: any) => {
+    setPlans(plans.map((p) => (p.id === id ? { ...p, [field]: value } : p)))
+  }
+
+  // ===== FORMATAÇÃO =====
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -314,276 +392,254 @@ export default function SimuladorMRP() {
     }).format(value)
   }
 
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
+
+  // ===== RENDERIZAÇÃO =====
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-balance">Simulador MRP</h1>
+        <h1 className="text-3xl font-bold">Simulador MRP</h1>
         <p className="text-muted-foreground">Calcule as necessidades de matérias-primas para produção</p>
       </div>
 
+      {/* Configuração da Simulação */}
       <Card>
         <CardHeader>
-          <CardDescription>Adicione os produtos que deseja produzir e suas quantidades</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Calculator className="h-5 w-5" />
+            Configuração da Simulação
+          </CardTitle>
+          <CardDescription>
+            Selecione os produtos e quantidades para calcular as necessidades de materiais
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {loading ? (
-            <div className="text-center py-4 text-muted-foreground">Carregando produtos...</div>
-          ) : (
-            <>
-              <div className="flex items-end gap-4">
-                <div className="flex-1">
-                  <Select
-                    value=""
-                    onValueChange={(value) => {
-                      const newPlan = { id: Date.now(), product_id: Number.parseInt(value), quantity: 0 }
-                      setPlans([...plans, newPlan])
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um produto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {products
-                        .filter((p) => !plans.some((plan) => plan.product_id === p.id))
-                        .map((product) => (
-                          <SelectItem key={product.id} value={product.id.toString()}>
-                            <div className="flex items-center justify-between gap-2 w-full">
-                              <span>
-                                {product.descricao} ({product.identificacao})
-                              </span>
-                              {!product.hasFichaTecnica && (
-                                <Badge variant="warning" className="ml-2 text-xs">
-                                  Sem Ficha
-                                </Badge>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-40">
-                  <Input type="number" placeholder="Quantidade" disabled />
-                </div>
-                <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Adicionar
-                </Button>
+          {plans.map((plan, index) => (
+            <div key={plan.id} className="flex gap-4 items-end">
+              <div className="flex-1">
+                <Label>Produto Acabado</Label>
+                <Select
+                  value={plan.product_id?.toString() || ""}
+                  onValueChange={(value) => updatePlan(plan.id, "product_id", Number.parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um produto..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.id.toString()}>
+                        <div className="flex items-center gap-2">
+                          <span>{product.descricao}</span>
+                          {!product.hasFichaTecnica && (
+                            <Badge variant="secondary" className="text-xs">
+                              Sem Ficha Técnica
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-
-              {plans.filter((p) => p.product_id).length > 0 && (
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold">Produtos Selecionados</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setPlans([{ id: 1, product_id: null, quantity: 100 }])}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Limpar Tudo
-                    </Button>
-                  </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Produto</TableHead>
-                        <TableHead className="text-right">Quantidade</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {plans
-                        .filter((p) => p.product_id)
-                        .map((plan) => {
-                          const product = products.find((p) => p.id === plan.product_id)
-                          return (
-                            <TableRow key={plan.id}>
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                  <span>{product?.descricao}</span>
-                                  {product && !product.hasFichaTecnica && (
-                                    <Badge variant="warning" className="text-xs">
-                                      Sem Ficha Técnica
-                                    </Badge>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Input
-                                  type="number"
-                                  value={plan.quantity}
-                                  onChange={(e) => updatePlanQuantity(plan.id, Number.parseInt(e.target.value) || 0)}
-                                  min="0"
-                                  className="w-32 ml-auto"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  onClick={() => removePlan(plan.id)}
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                    </TableBody>
-                  </Table>
-                </div>
+              <div className="w-48">
+                <Label>Quantidade a Produzir</Label>
+                <Input
+                  type="number"
+                  value={plan.quantity}
+                  onChange={(e) => updatePlan(plan.id, "quantity", Number.parseInt(e.target.value) || 0)}
+                  placeholder="Ex: 1000"
+                />
+              </div>
+              {plans.length > 1 && (
+                <Button variant="outline" size="icon" onClick={() => removePlan(plan.id)}>
+                  ×
+                </Button>
               )}
-            </>
-          )}
+            </div>
+          ))}
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={addPlan}>
+              + Adicionar Produto
+            </Button>
+            <Button onClick={calculateMRP} disabled={calculating || plans.every((p) => !p.product_id)}>
+              {calculating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Calculando...
+                </>
+              ) : (
+                <>
+                  <Calculator className="mr-2 h-4 w-4" />
+                  Calcular Necessidades
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Results */}
+      {/* Resultados */}
       {results && (
         <>
+          {/* Cards de Métricas */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div>
-                  <CardTitle className="text-sm font-medium">Custo Real da Produção</CardTitle>
-                </div>
-                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <DollarSign className="h-5 w-5 text-green-600" />
-                </div>
+                <CardTitle className="text-sm font-medium">Custo Total</CardTitle>
+                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(results.totalCost)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Baseado nas quantidades necessárias</p>
+                <p className="text-xs text-muted-foreground">Cenário exato</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div>
-                  <CardTitle className="text-sm font-medium">Custo de Aquisição</CardTitle>
-                </div>
-                <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-orange-600" />
-                </div>
+                <CardTitle className="text-sm font-medium">Materiais Necessários</CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(results.totalCost)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Considerando quantidades mínimas</p>
+                <div className="text-2xl font-bold">{results.requirements.length}</div>
+                <p className="text-xs text-muted-foreground">
+                  {results.requirements.filter((r) => r.purchase > 0).length} precisam ser comprados
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div>
-                  <CardTitle className="text-sm font-medium">Excesso de Estoque</CardTitle>
-                </div>
-                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <Package2 className="h-5 w-5 text-green-600" />
-                </div>
+                <CardTitle className="text-sm font-medium">Economia Potencial</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(0)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Capital imobilizado</p>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(results.totalCost - results.scenarios.consolidated)}
+                </div>
+                <p className="text-xs text-muted-foreground">Com compra consolidada</p>
               </CardContent>
             </Card>
           </div>
 
+          {/* Tabela de Materiais */}
           <Card>
             <CardHeader>
-              <CardTitle>Necessidades de Materiais Consolidadas</CardTitle>
-              <CardDescription>Quantidades necessárias vs. quantidades mínimas de compra</CardDescription>
+              <CardTitle>Necessidades de Matérias-Primas</CardTitle>
+              <CardDescription>Lista detalhada de materiais necessários e fornecedores disponíveis</CardDescription>
             </CardHeader>
             <CardContent>
-              {results.requirements.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nenhuma matéria-prima necessária. Verifique se os produtos selecionados possuem ficha técnica
-                  cadastrada.
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Matéria-Prima</TableHead>
-                      <TableHead className="text-right">Demanda Específica</TableHead>
-                      <TableHead className="text-right">Estoque Atual</TableHead>
-                      <TableHead className="text-right">A Comprar</TableHead>
-                      <TableHead className="text-right">Custo</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {results.requirements.map((req) => (
-                      <TableRow key={req.code}>
-                        <TableCell className="font-mono text-sm">{req.code}</TableCell>
-                        <TableCell className="font-medium">{req.name}</TableCell>
-                        <TableCell className="text-right">
-                          {req.required.toFixed(2)} {req.unit}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {req.stock.toFixed(2)} {req.unit}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {req.purchase.toFixed(2)} {req.unit}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(req.totalCost)}</TableCell>
-                        <TableCell>
-                          <Badge variant={req.purchase > 0 ? "warning" : "success"}>
-                            {req.purchase > 0 ? "Comprar" : "OK"}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Matéria-Prima</TableHead>
+                    <TableHead className="text-right">Necessário</TableHead>
+                    <TableHead className="text-right">Estoque</TableHead>
+                    <TableHead className="text-right">A Comprar</TableHead>
+                    <TableHead className="text-right">Custo</TableHead>
+                    <TableHead>Fornecedores</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {results.requirements.map((req, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-mono text-sm">{req.code}</TableCell>
+                      <TableCell>
+                        <div className="font-medium">{req.name}</div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatNumber(req.required)} {req.unit}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatNumber(req.stock)} {req.unit}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatNumber(req.purchase)} {req.unit}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(req.totalCost)}</TableCell>
+                      <TableCell>
+                        {req.suppliers && req.suppliers.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            {req.suppliers.slice(0, 2).map((supplier, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <Store className="h-3 w-3 text-muted-foreground" />
+                                <span
+                                  className="text-sm truncate max-w-[200px]"
+                                  title={`${supplier.nome_fornecedor}\n${supplier.email || ""}\n${supplier.telefone || ""}`}
+                                >
+                                  {supplier.nome_fornecedor}
+                                </span>
+                              </div>
+                            ))}
+                            {req.suppliers.length > 2 && (
+                              <span className="text-xs text-muted-foreground">+{req.suppliers.length - 2} mais</span>
+                            )}
+                          </div>
+                        ) : req.purchase > 0 ? (
+                          <Badge variant="secondary" className="text-xs">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Sem fornecedor
                           </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {req.purchase === 0 ? (
+                          <Badge variant="default" className="bg-green-500">
+                            Estoque OK
+                          </Badge>
+                        ) : req.suppliers.length > 0 ? (
+                          <Badge variant="secondary">Comprar</Badge>
+                        ) : (
+                          <Badge variant="destructive">Sem fornecedor</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
 
+          {/* Cenários de Compra */}
           <Card>
             <CardHeader>
-              <CardTitle>Análise de Impacto Financeiro</CardTitle>
-              <CardDescription>Comparação entre cenários de compra</CardDescription>
+              <CardTitle>Cenários de Compra</CardTitle>
+              <CardDescription>Análise de diferentes estratégias de aquisição</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <h4 className="font-semibold">Cenário 1: Compra Exata</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Comprar apenas as quantidades necessárias para produção
-                  </p>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Cenário Exato</div>
+                  <div className="text-2xl font-bold">{formatCurrency(results.scenarios.exact)}</div>
+                  <p className="text-xs text-muted-foreground">Compra exata das quantidades necessárias</p>
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold">{formatCurrency(results.totalCost)}</div>
-                  <Badge variant="success" className="mt-1">
-                    Menor custo
-                  </Badge>
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Cenário Mínimo</div>
+                  <div className="text-2xl font-bold">{formatCurrency(results.scenarios.minimum)}</div>
+                  <p className="text-xs text-muted-foreground">Com desconto de 15% (negociação)</p>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <h4 className="font-semibold">Cenário 2: Compra Mínima</h4>
-                  <p className="text-sm text-muted-foreground">Respeitar quantidades mínimas dos fornecedores</p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold">{formatCurrency(results.totalCost)}</div>
-                  <Badge variant="warning" className="mt-1">
-                    Qtd. mínima dos fornecedores
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-4 border rounded-lg bg-blue-50">
-                <div>
-                  <h4 className="font-semibold">Cenário 3: Consolidado (Recomendado)</h4>
-                  <p className="text-sm text-muted-foreground">Aproveitar excesso para futuras produções</p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold">{formatCurrency(results.totalCost)}</div>
-                  <Badge className="mt-1 bg-blue-600 text-white border-blue-600">Otimiza capital de giro</Badge>
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Cenário Consolidado</div>
+                  <div className="text-2xl font-bold">{formatCurrency(results.scenarios.consolidated)}</div>
+                  <p className="text-xs text-muted-foreground">Com desconto de 10% (volume)</p>
                 </div>
               </div>
             </CardContent>
@@ -591,11 +647,16 @@ export default function SimuladorMRP() {
         </>
       )}
 
-      {plans.filter((p) => p.product_id).length > 0 && !results && (
-        <Button onClick={calculateMRP} className="w-full" size="lg" disabled={calculating}>
-          <Calculator className="h-4 w-4 mr-2" />
-          {calculating ? "Calculando..." : "Calcular Necessidades"}
-        </Button>
+      {/* Estado vazio */}
+      {!results && !calculating && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Calculator className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground text-center">
+              Selecione produtos e clique em "Calcular Necessidades" para ver os resultados
+            </p>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
