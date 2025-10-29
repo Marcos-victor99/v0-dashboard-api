@@ -64,6 +64,8 @@ interface Subproduto {
   comportamento: string | null
 }
 
+export const dynamic = "force-dynamic"
+
 export default function FichasTecnicas() {
   const [searchTerm, setSearchTerm] = useState("")
   const [fichas, setFichas] = useState<FichaTecnica[]>([])
