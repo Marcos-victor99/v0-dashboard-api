@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, FileText, Package, Settings, ChevronDown, ChevronUp, Factory } from "lucide-react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/utils/supabase/client"
 
 interface FichaTecnica {
   id: number
@@ -76,10 +76,7 @@ export default function FichasTecnicas() {
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set())
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = createClient()
 
   useEffect(() => {
     fetchFichasTecnicas()
