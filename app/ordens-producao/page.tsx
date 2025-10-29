@@ -24,7 +24,7 @@ import {
   Filter,
   X,
 } from "lucide-react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/utils/supabase/client"
 
 interface OrdemProducao {
   id: number
@@ -64,6 +64,8 @@ interface OrdemServico {
   tempo_total: number | null
 }
 
+export const dynamic = "force-dynamic"
+
 export default function OrdensProducao() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -81,10 +83,7 @@ export default function OrdensProducao() {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [loadingDetails, setLoadingDetails] = useState(false)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = createClient()
 
   useEffect(() => {
     fetchOrdens()

@@ -29,7 +29,7 @@ import {
   Clock,
   BarChart3,
 } from "lucide-react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/utils/supabase/client"
 
 interface RawMaterial {
   id: number
@@ -63,6 +63,8 @@ interface Lote {
   localizacao: string | null
 }
 
+export const dynamic = "force-dynamic"
+
 export default function MateriasPrimas() {
   const [searchTerm, setSearchTerm] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
@@ -75,10 +77,7 @@ export default function MateriasPrimas() {
   const [lotesDialogOpen, setLotesDialogOpen] = useState(false)
   const [loadingLotes, setLoadingLotes] = useState(false)
 
-  const supabase = createBrowserClient(
-    "https://vdhxtlnadjejyyydmlit.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkaHh0bG5hZGplanl5eWRtbGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExODAzMDEsImV4cCI6MjA1Njc1NjMwMX0.TWzazmeto1Ic5cNAf7LrDjHcrbuaofCid_3xNiBnVkE",
-  )
+  const supabase = createClient()
 
   useEffect(() => {
     fetchMaterials()
