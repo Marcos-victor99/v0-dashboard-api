@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,7 +26,7 @@ import {
   MessageSquare,
   PhoneCall,
 } from "lucide-react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/utils/supabase/client"
 
 interface Supplier {
   id: number
@@ -56,9 +58,7 @@ export default function Fornecedores() {
   useEffect(() => {
     async function fetchSuppliers() {
       try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        const supabase = createBrowserClient(supabaseUrl, supabaseKey)
+        const supabase = createClient()
 
         const allSuppliers: Supplier[] = []
         const batchSize = 1000

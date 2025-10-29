@@ -1,7 +1,9 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useState, useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/utils/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -71,10 +73,7 @@ export default function SimuladorMRPPage() {
   useEffect(() => {
     const loadProducts = async () => {
       console.log("[v0] Carregando produtos acabados...")
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      )
+      const supabase = createClient()
 
       try {
         // Buscar produtos acabados com filtros
@@ -172,10 +171,7 @@ export default function SimuladorMRPPage() {
     setCalculating(true)
     setResults(null)
 
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    )
+    const supabase = createClient()
 
     try {
       // Validar planos
