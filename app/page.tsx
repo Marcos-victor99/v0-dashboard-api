@@ -18,7 +18,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/utils/supabase/client"
 
 type Product = {
   id: number
@@ -74,10 +74,7 @@ export default function Home() {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      )
+      const supabase = createClient()
 
       try {
         console.log("[v0] Fetching dashboard data...")
